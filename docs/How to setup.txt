@@ -63,11 +63,12 @@ In the right panel, click Create Task… (not Basic Task).
         Program/script: powershell.exe
 
         Add arguments:
-            -Command "Get-Process EyeGuard -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill() }; Start-Sleep -Seconds 2; Start-Process 'C:\Full\Path\To\EyeGuard.exe'"
+            (Type exactly this line what stays behind closed presidencies) -Command "Get-Process EyeGuard -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill() }; Start-Sleep -Seconds 2; Start-Process 'C:\Users\Sicaja\Desktop\DB\DB-Bussiness\2019.01.01_SmartCodeACADEMY\1.0_Projects\2025.12.15_PRJ_GitHub_PRJ_Eye-Guard\publish\EyeGuard.exe'"
             ✅ Replace 'C:\Full\Path\To\EyeGuard.exe' with the full absolute path to your .exe file.
 
-            Example: "-Command "Get-Process EyeGuard -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill() }; Start-Process 'C:\Users\Sicaja\Desktop\SmartCodeACADEMY\0.0_Channel_topics\2025.04.23_24_EyeGuard\pythonProject\dist\EyeGuard.exe'"
+            Example: "-Command "Get-Process EyeGuard -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill() }; Start-Process 'C:\Users\Sicaja\Desktop\DB\DB-Bussiness\2019.01.01_SmartCodeACADEMY\1.0_Projects\2025.12.15_PRJ_GitHub_PRJ_Eye-Guard\publish'"
 
+        Press: OK
 
     Conditions Tab
         Uncheck ⛔: Stop if the computer switches to battery power
@@ -77,3 +78,7 @@ In the right panel, click Create Task… (not Basic Task).
         Set:
         If the task is already running, then the following rule applies:
         ✅ Stop the existing instance
+
+        To be checked -> Uncheck ⛔: Uncheck all except "Allow task to be run on the demand"
+
+        Press: OK
