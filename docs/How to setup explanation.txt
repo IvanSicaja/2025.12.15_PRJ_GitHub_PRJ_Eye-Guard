@@ -1,0 +1,59 @@
+1. Optional
+
+Your antivirus might flag the .exe as suspicious.
+To prevent this, add the original folder location of the .exe file (not the shortcut) to your antivirus program’s exception list.
+Search YouTube for how to do this based on your antivirus.
+
+2. Optional: Restart the app on every workstation unlock
+
+To ensure EyeGuard.exe always runs fresh each time you log in or unlock your PC (and prevent multiple instances), set up a Task Scheduler entry as follows:
+
+✅ Create the Scheduled Task
+Search in Windows search bar "Task Scheduler" or press Win + R, type "taskschd.msc", and press Enter to open Task Scheduler.
+
+In the right panel, click Create Task… (not Basic Task).
+
+    General Tab:
+        Name: EyeGuard.exe
+
+        Check ✅: Run only when user is logged on
+
+        Check ✅: Run with highest privileges
+
+
+    Triggers Tab:
+        Click New…
+
+        Begin the task: On workstation unlock
+
+        Click OK
+
+
+    Actions Tab:
+        Click New…
+
+        Action: Start a program
+
+        Program/script: powershell.exe
+
+        Add arguments:
+            (Copy the entire following line bellow and replace there 'C:\Full\Path\To\EyeGuard.exe' with the full absolute path to your .exe file.)
+            -Command "Get-Process EyeGuard -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill() }; Start-Sleep -Seconds 2; Start-Process 'C:\Users\Sicaja\Desktop\DB\DB-Bussiness\2019.01.01_SmartCodeACADEMY\1.0_Projects\2025.12.15_PRJ_GitHub_PRJ_Eye-Guard\publish\EyeGuard.exe'"
+
+        Press: OK
+
+    Conditions Tab
+        Uncheck ⛔: Stop if the computer switches to battery power
+
+
+    Settings Tab
+        Set:
+        If the task is already running, then the following rule applies:
+        ✅ Stop the existing instance
+
+       Uncheck ⛔:
+       Uncheck all except "Allow task to be run on the demand"
+
+        Press: OK
+
+Now you can lock and unlock your PC and this is it. You need to see pop-up window in the lower right part of you screen.
