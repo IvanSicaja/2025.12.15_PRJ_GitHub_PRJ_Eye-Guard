@@ -29,7 +29,7 @@ IMAGE4_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "4.png")
 # TIMING CONFIGURATION - Change these values as needed
 # ============================================================================
 # TEST MODE: Set to True for quick 5-second testing, False for production
-TEST_MODE = True
+TEST_MODE = False
 
 if TEST_MODE:
     # Test timings (in seconds) - for quick testing
@@ -48,6 +48,10 @@ else:
 # Global queue for popup requests
 popup_queue = Queue()
 
+# Animation settings
+FADE_DURATION = 1000  # 1 second for fade in/out
+DISPLAY_TIME = 3000  # 3 seconds to display fully visible
+
 
 def play_sound_async(repeat=1):
     """Play sound in a separate thread so it doesn't block timing"""
@@ -60,11 +64,31 @@ def play_sound_async(repeat=1):
     thread.start()
 
 
+def fade_in(popup, step=0.0):
+    """Fade in animation"""
+    if step <= 1.0:
+        popup.attributes("-alpha", step)
+        popup.after(20, lambda: fade_in(popup, step + 0.05))
+    else:
+        popup.attributes("-alpha", 1.0)
+
+
+def fade_out(popup, step=1.0):
+    """Fade out animation"""
+    if step >= 0.0:
+        popup.attributes("-alpha", step)
+        popup.after(20, lambda: fade_out(popup, step - 0.05))
+    else:
+        popup.attributes("-alpha", 0.0)
+        popup.destroy()
+
+
 def create_popup(root, message, image_path):
-    """Create popup window (called from main thread)"""
+    """Create popup window with fade animations"""
     popup = Toplevel(root)
     popup.overrideredirect(True)
     popup.attributes("-topmost", True)
+    popup.attributes("-alpha", 0.0)  # Start fully transparent
 
     # Get screen dimensions
     user32 = ctypes.windll.user32
@@ -128,7 +152,11 @@ def create_popup(root, message, image_path):
     )
     message_label.pack(side="left", fill="both", expand=True)
 
-    popup.after(5000, popup.destroy)
+    # Start fade in animation
+    fade_in(popup)
+
+    # Schedule fade out after 3 seconds (including fade time)
+    popup.after(DISPLAY_TIME, lambda: fade_out(popup))
 
 
 def show_popup(message, image_path):
