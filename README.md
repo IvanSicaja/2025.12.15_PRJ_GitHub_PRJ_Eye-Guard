@@ -1,8 +1,7 @@
-**🧾 🎯 Role title:** **Drone Development Team Lead – Barcelona Smart Drone Challenge 2019  
-📍 Location:** Aero-association Split, Ruđera Boškovića 32, HR-21000 Split, Croatia  
-**📅 Project Timeline:** Dec 2018 – May 2019  
+**🧾 🎯 Project Title: EYEGUARD - DESKTOP EYE STRAIN PREVENTION APP  
+📅 Project Timeline:** November - December 2025  
 🎥 YouTube Demo: Not available  
-📦 GitHub: <https://github.com/IvanSicaja/2018.12.01_GitHub_Barcelona-Smart-Drone-Challenge-2019>  
+📦 GitHub Source Code: <https://github.com/IvanSicaja/2025.12.15_PRJ_GitHub_PRJ_Eye-Guard>  
 \----------------------------------------------------------------------------------------------------------------
 
 🏷️ My Personal Profiles: ⬇︎  
@@ -12,24 +11,43 @@
 🎥 YouTube: <https://www.youtube.com/@ivan_sicaja>  
 \----------------------------------------------------------------------------------------------------------------
 
-📚🔍 **Project Description:**
+### 📚🔍 Project description: ⬇︎⬇︎⬇︎
 
-💡 **Role/Project Description:**  
-As **Team Lead** for the **Barcelona Smart Drone Challenge 2019**, I aimed **to coordinate multidisciplinary teams** including the **Battery & Propulsion Systems team**, **Radio Communication & Signal Encryption team**, **Drone Frame Design team**, **Autopilot team**, **Object Detection team**, and **Delivery team**, ensuring seamless integration across all **UAV subsystems**:
+### 💡 App Purpose
 
-- **To lead** the **Battery & Propulsion Systems team** to design and optimize **motors, propellers, batteries, and ESCs** for endurance and efficiency using **eCalc.ch**.
-- **To implement** **secure digital radio communication** with **signal encryption**, coordinating the **Radio Communication & Signal Encryption team**.
-- **To supervise** the **Drone Frame Design team** in creating a **lightweight, aerodynamic, and durable structure**.
-- **To guide** the **Autopilot team** in integrating **ArduPilot Mission Planner, Pixhawk, and Odroid**, enabling **fully autonomous flight**.
-- **To oversee** the **Object Detection team** for accurate **ground target recognition**.
-- **To coordinate** the **Delivery team**, ensuring precise and reliable **autonomous package delivery**.
-- **To ensure** smooth **multidisciplinary collaboration**, balancing technical innovation with competition constraints.
+EyeGuard is a lightweight **desktop application** designed to combat **digital eye strain** (Computer Vision Syndrome) by reminding users to take regular eye breaks. It follows a customized version of the popular **20-20-20 rule**, adapted for productivity:
 
-⚠️ **Note:**  
-Due to **insufficient sponsorship**, the team **did not participate in the tournament**.
+- Work focused for **25 minutes**
+- Take a **30-second** micro-break (look away/close eyes)
+- Enjoy **4.5 minutes** of free time (stretch, relax)
 
-🔧 **Tech Stack:**  
-**Drone Development, Battery & Propulsion Systems, eCalc.ch, Digital Radio Communication, Signal Encryption, Drone Frame Design, ArduPilot Mission Planner, Pixhawk, Odroid, Autonomous Flight, Object Detection, Target Recognition, Package Delivery**
+This cycle repeats every **30 minutes**, helping reduce eye fatigue, dryness, headaches, and long-term vision issues caused by prolonged screen time.
 
-📣 **Hashtags:**  
-\# #**DroneDevelopment** #**UAV** #**AutonomousSystems** #**PropulsionDesign** #**BatterySystems** #**RadioCommunication** #**SignalEncryption** #**FrameDesign** #**ArduPilot** #**Pixhawk** #**Odroid** #**SmartDroneChallenge** #**TeamLead** #**AerospaceEngineering** #**AutonomousFlight** #**ObjectDetection** #**PackageDelivery**
+### 🧠 How It Works
+
+- Runs silently in the background after startup notification.
+- Displays elegant, animated fade-in/out popup notifications in the screen corner with custom images and messages.
+- Plays alert sounds (non-blocking, asynchronous) at key moments.
+- Precise timing ensures cycles stay synchronized, even over long runs (e.g., 8+ hours).
+- Bundled as a standalone .exe (no Python installation needed) using PyInstaller.
+- Configurable test mode for rapid development/testing.
+
+### ⚠️ Note
+
+None
+
+### 🔧 Tech Stack
+
+**Python,Tkinter (GUI), Pillow (Image Handling), Pygame (Audio Playback), PyInstaller (Executable Packaging), Threading & Queue (Concurrency), Windows API (ctypes for screen metrics), Desktop Application Development**
+
+### 📸 Project Snapshot
+
+Not available.
+
+### 🎥 Video Demonstration
+
+Not available.
+
+### 📣 Hashtags Section
+
+\# #EyeGuard #EyeStrainPrevention #DigitalEyeStrain #EyeCare #202020Rule #Python #Tkinter #PyInstaller #Pygame #DesktopApp #WindowsApp #ProductivityTool #HealthTech #ComputerVisionSyndrome #PythonGUI #OpenSource #GitHub #SoftwareDevelopment #HealthApp #EyeHealth #ScreenTimeManagement
