@@ -10,18 +10,14 @@ import threading
 from queue import Queue
 
 # ====================== CONFIGURATION ======================
-# Unified message color for all popups and console logs
-MESSAGE_COLOR = "#000000"  # green
-CONSOLE_COLOR_CODE = "\033[92m"  # bright green for console
-CONSOLE_RESET = "\033[0m"
+MESSAGE_COLOR = "#000000"  # popup message color
+FONT_NAME = "Montserrat"   # "Montserrat"   or "Garrett Book"
 
-# Get base path (works for .py and PyInstaller .exe)
 if getattr(sys, 'frozen', False):
     BASE_DIR = sys._MEIPASS
 else:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Resource paths
 SOUND_PATH = os.path.join(BASE_DIR, "assets", "media", "sounds", "sound.mp3")
 ICON_PATH = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.png")
 IMAGE1_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "1.png")
@@ -29,36 +25,29 @@ IMAGE2_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "2.png")
 IMAGE3_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "3.png")
 IMAGE4_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "4.png")
 
-# ====================== TIMING CONFIGURATION ======================
 TEST_MODE = True
-
 if TEST_MODE:
-    WORK_TIME = 5      # seconds
-    BREAK_TIME = 5     # seconds
-    FREE_TIME = 5      # seconds
+    WORK_TIME = 5
+    BREAK_TIME = 5
+    FREE_TIME = 5
 else:
-    WORK_TIME = 25 * 60        # 25 minutes
-    BREAK_TIME = 30            # 30 seconds
-    FREE_TIME = 4 * 60 + 30    # 4 minutes 30 seconds
-
+    WORK_TIME = 25 * 60
+    BREAK_TIME = 30
+    FREE_TIME = 4 * 60 + 30
 TOTAL_CYCLE = WORK_TIME + BREAK_TIME + FREE_TIME
 
-# ====================== INITIALIZE SOUND ======================
 pygame.init()
 pygame.mixer.init()
 
 def play_sound_async(repeat=1):
-    """Play sound asynchronously in a thread (non-blocking)"""
     def _play():
         for _ in range(repeat):
             pygame.mixer.music.load(SOUND_PATH)
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy():
                 time.sleep(0.1)
-    thread = threading.Thread(target=_play, daemon=True)
-    thread.start()
+    threading.Thread(target=_play, daemon=True).start()
 
-# ====================== POPUP QUEUE ======================
 popup_queue = Queue()
 FADE_DURATION = 1000
 DISPLAY_TIME = 3000
@@ -88,7 +77,7 @@ def create_popup(root, message, image_path):
     screen_width = user32.GetSystemMetrics(0)
     screen_height = user32.GetSystemMetrics(1)
     popup_width = 420
-    popup_height = 120
+    popup_height = 140
     x = screen_width - popup_width - 20
     y = screen_height - popup_height - 60
     popup.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
@@ -106,13 +95,13 @@ def create_popup(root, message, image_path):
         icon = Image.open(ICON_PATH).resize((20, 20))
         icon_photo = ImageTk.PhotoImage(icon)
         popup.icon_photo = icon_photo
-        icon_label = tk.Label(header, image=icon_photo, bg="#f0f0f0")
-        icon_label.pack(side="left", padx=(5, 5))
+        tk.Label(header, image=icon_photo, bg="#f0f0f0").pack(side="left", padx=(5, 5))
 
+    # ------------ Header Text Fixed Size (previous size, not bold) ------------
     title_label = tk.Label(
         header,
-        text="EyeGuard • Developed by Ivan Sicaja © 2025 All rights reserved",
-        font=("Calibri Light", 10),
+        text="EyeGuard",
+        font=(FONT_NAME, 10),  # previous size
         bg="#f0f0f0",
         fg="#2b2b2b"
     )
@@ -125,19 +114,27 @@ def create_popup(root, message, image_path):
         img = Image.open(image_path).resize((60, 60))
         photo = ImageTk.PhotoImage(img)
         popup.photo = photo
-        img_label = tk.Label(content, image=photo, bg="white")
-        img_label.pack(side="left", padx=10)
+        tk.Label(content, image=photo, bg="white").pack(side="left", padx=10)
 
     message_label = tk.Label(
         content,
         text=message,
-        font=("Calibri Light", 12),
+        font=(FONT_NAME, 12),
         bg="white",
-        fg=MESSAGE_COLOR,   # unified color
+        fg=MESSAGE_COLOR,
         wraplength=280,
         justify="center"
     )
     message_label.pack(side="left", fill="both", expand=True)
+
+    footer = tk.Label(
+        container,
+        text="Developed by Ivan Sicaja © 2026. All rights reserved.",
+        font=(FONT_NAME, 8),
+        bg="white",
+        fg="#555555"
+    )
+    footer.pack(side="bottom", pady=(5,0))
 
     fade_in(popup)
     popup.after(DISPLAY_TIME + 1000, lambda: fade_out(popup))
@@ -154,83 +151,58 @@ def check_popup_queue(root):
         pass
     root.after(100, lambda: check_popup_queue(root))
 
-# ====================== TIME UTILITIES ======================
-def get_precise_time():
-    return time.strftime('%H:%M:%S') + f".{int(time.time() % 1 * 1000):03d}"
-
 def format_time_from_timestamp(timestamp):
     return time.strftime('%H:%M:%S', time.localtime(timestamp)) + f".{int(timestamp % 1 * 1000):03d}"
 
-# ====================== CONSOLE PRINT WITH COLOR ======================
-def print_colored(msg):
-    print(f"{CONSOLE_COLOR_CODE}{msg}{CONSOLE_RESET}")
-
-# ====================== TIMER THREAD ======================
 def timer_thread():
     mode = "TEST" if TEST_MODE else "PRODUCTION"
-    print_colored(f"=== EyeGuard Starting in {mode} MODE ===")
-    print_colored(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s | Free: {FREE_TIME}s | Total: {TOTAL_CYCLE}s")
-    print_colored("=" * 60)
+    print(f"=== EyeGuard Starting in {mode} MODE ===")
+    print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s | Free: {FREE_TIME}s | Total: {TOTAL_CYCLE}s")
+    print("=" * 60)
 
     show_popup("EyeGuard is now active — helping you care for your eyes!", image_path=IMAGE1_PATH)
     play_sound_async(1)
 
     cycle_number = 1
-
     while True:
         cycle_start = time.time()
-        print_colored(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(cycle_start)}")
+        print(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(cycle_start)}")
 
-        # ---------------- WORK ----------------
         target = cycle_start + WORK_TIME
         time.sleep(max(0, target - time.time()))
         now = time.time()
-        print_colored(f"[WORK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
-
+        print(f"[WORK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
         show_popup("Your eyes deserve a quick rest. Take a 30-second break!", image_path=IMAGE2_PATH)
         play_sound_async(1)
 
-        # ---------------- BREAK ----------------
         target = cycle_start + WORK_TIME + BREAK_TIME
         time.sleep(max(0, target - time.time()))
         now = time.time()
-        print_colored(f"[BREAK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
-
+        print(f"[BREAK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
         show_popup("Eye break’s over. Enjoy 4½ minutes just for you!", image_path=IMAGE3_PATH)
         play_sound_async(1)
 
-        # ---------------- FREE ----------------
         target = cycle_start + WORK_TIME + BREAK_TIME + FREE_TIME
         time.sleep(max(0, target - time.time()))
         now = time.time()
-        print_colored(f"[FREE END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
-
+        print(f"[FREE END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
         show_popup("Great! Let’s get back to it, refreshed and focused!", image_path=IMAGE4_PATH)
         play_sound_async(2)
 
-        # ---------------- CYCLE END ----------------
         cycle_end = time.time()
         actual = cycle_end - cycle_start
         drift = actual - TOTAL_CYCLE
-
-        print_colored(
+        print(
             f"[CYCLE {cycle_number} END] {format_time_from_timestamp(cycle_end)} | "
-            f"Expected: {TOTAL_CYCLE:.3f}s | "
-            f"Actual: {actual:.3f}s | "
-            f"Drift: {drift:+.3f}s"
+            f"Expected: {TOTAL_CYCLE:.3f}s | Actual: {actual:.3f}s | Drift: {drift:+.3f}s"
         )
-
         cycle_number += 1
 
-# ====================== MAIN ======================
 def main():
     root = tk.Tk()
     root.withdraw()
     check_popup_queue(root)
-
-    thread = threading.Thread(target=timer_thread, daemon=True)
-    thread.start()
-
+    threading.Thread(target=timer_thread, daemon=True).start()
     root.mainloop()
 
 if __name__ == "__main__":
