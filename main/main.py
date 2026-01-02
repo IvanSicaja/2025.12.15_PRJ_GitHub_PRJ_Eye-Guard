@@ -25,15 +25,15 @@ IMAGE2_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "2.png")
 IMAGE3_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "3.png")
 IMAGE4_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "4.png")
 
-TEST_MODE = True
+TEST_MODE = False
 if TEST_MODE:
     WORK_TIME = 5
     BREAK_TIME = 5
     FREE_TIME = 5
 else:
     WORK_TIME = 25 * 60
-    BREAK_TIME = 30
-    FREE_TIME = 4 * 60 + 30
+    BREAK_TIME = 3 * 60
+    FREE_TIME = 2 * 60
 TOTAL_CYCLE = WORK_TIME + BREAK_TIME + FREE_TIME
 
 pygame.init()
@@ -77,7 +77,7 @@ def create_popup(root, message, image_path):
     screen_width = user32.GetSystemMetrics(0)
     screen_height = user32.GetSystemMetrics(1)
     popup_width = 420
-    popup_height = 160  # increased height to ensure footer is visible
+    popup_height = 160  # keep increased height for footer
     x = screen_width - popup_width - 20
     y = screen_height - popup_height - 60
     popup.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
@@ -90,7 +90,7 @@ def create_popup(root, message, image_path):
 
     # ---------------- Header ----------------
     header = tk.Frame(container, bg="white")
-    header.pack(fill="x", pady=(0, 5))
+    header.pack(fill="x", pady=(0, 0))  # removed bottom padding for tighter spacing
 
     if os.path.exists(ICON_PATH):
         icon = Image.open(ICON_PATH).resize((20, 20))
@@ -107,8 +107,8 @@ def create_popup(root, message, image_path):
     )
     title_label.pack(side="left")
 
-    # ---------------- Top separator line ----------------
-    tk.Frame(container, height=1, bg="#dddddd").pack(fill="x", pady=(5, 5))  # subtle line
+    # ---------------- Top separator line (closer to header) ----------------
+    tk.Frame(container, height=1, bg="#dddddd").pack(fill="x", pady=(2, 5))  # smaller top padding
 
     # ---------------- Content ----------------
     content = tk.Frame(container, bg="white")
