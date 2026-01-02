@@ -77,7 +77,7 @@ def create_popup(root, message, image_path):
     screen_width = user32.GetSystemMetrics(0)
     screen_height = user32.GetSystemMetrics(1)
     popup_width = 420
-    popup_height = 140
+    popup_height = 160  # increased height to ensure footer is visible
     x = screen_width - popup_width - 20
     y = screen_height - popup_height - 60
     popup.geometry(f"{popup_width}x{popup_height}+{x}+{y}")
@@ -89,7 +89,7 @@ def create_popup(root, message, image_path):
     container.pack(fill="both", expand=True)
 
     # ---------------- Header ----------------
-    header = tk.Frame(container, bg="white")  # same as entire popup
+    header = tk.Frame(container, bg="white")
     header.pack(fill="x", pady=(0, 5))
 
     if os.path.exists(ICON_PATH):
@@ -98,15 +98,17 @@ def create_popup(root, message, image_path):
         popup.icon_photo = icon_photo
         tk.Label(header, image=icon_photo, bg="white").pack(side="left", padx=(5, 5))
 
-    # ------------ Header Text Same Color as Message ------------
     title_label = tk.Label(
         header,
         text="EyeGuard",
-        font=(FONT_NAME, 10),  # previous size
+        font=(FONT_NAME, 10),
         bg="white",
-        fg=MESSAGE_COLOR  # same as main text
+        fg=MESSAGE_COLOR
     )
     title_label.pack(side="left")
+
+    # ---------------- Top separator line ----------------
+    tk.Frame(container, height=1, bg="#dddddd").pack(fill="x", pady=(5, 5))  # subtle line
 
     # ---------------- Content ----------------
     content = tk.Frame(container, bg="white")
@@ -123,12 +125,13 @@ def create_popup(root, message, image_path):
         text=message,
         font=(FONT_NAME, 12),
         bg="white",
-        fg=MESSAGE_COLOR,  # soft black
+        fg=MESSAGE_COLOR,
         wraplength=280,
         justify="center"
     )
     message_label.pack(side="left", fill="both", expand=True)
 
+    # ---------------- Footer ----------------
     footer = tk.Label(
         container,
         text="Developed by Ivan Sicaja © 2026. All rights reserved.",
