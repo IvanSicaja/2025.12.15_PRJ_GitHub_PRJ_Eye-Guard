@@ -165,45 +165,59 @@ def format_time_from_timestamp(timestamp):
 def timer_thread():
     mode = "TEST" if TEST_MODE else "PRODUCTION"
     print(f"=== EyeGuard Starting in {mode} MODE ===")
-    print(f"Base directory: {BASE_DIR}")
-    print(f"Sound path: {SOUND_PATH}")
-    print(f"Sound exists: {os.path.exists(SOUND_PATH)}")
-    print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s | Free: {FREE_TIME}s | Total cycle: {TOTAL_CYCLE}s")
-    print(f"Started at: {get_precise_time()}")
-    print("=" * 50)
+    print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s | Free: {FREE_TIME}s | Total: {TOTAL_CYCLE}s")
+    print("=" * 60)
 
-    # Startup
     show_popup("EyeGuard is now active — helping you care for your eyes!", image_path=IMAGE1_PATH)
     play_sound_async(1)
 
-    cycle_start = time.time()
     cycle_number = 1
 
     while True:
-        # Wait for work reminder
+        cycle_start = time.time()
+        print(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(cycle_start)}")
+
+        # ---------------- WORK ----------------
         target = cycle_start + WORK_TIME
         time.sleep(max(0, target - time.time()))
+        now = time.time()
+        print(f"[WORK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
 
         show_popup("Your eyes deserve a quick rest. Take a 30-second break!", image_path=IMAGE2_PATH)
         play_sound_async(1)
 
-        # Wait for break end
+        # ---------------- BREAK ----------------
         target = cycle_start + WORK_TIME + BREAK_TIME
         time.sleep(max(0, target - time.time()))
+        now = time.time()
+        print(f"[BREAK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
 
         show_popup("Eye break’s over. Enjoy 4½ minutes just for you!", image_path=IMAGE3_PATH)
         play_sound_async(1)
 
-        # Wait for free time end
+        # ---------------- FREE ----------------
         target = cycle_start + WORK_TIME + BREAK_TIME + FREE_TIME
         time.sleep(max(0, target - time.time()))
+        now = time.time()
+        print(f"[FREE END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
 
         show_popup("Great! Let’s get back to it, refreshed and focused!", image_path=IMAGE4_PATH)
         play_sound_async(2)
 
-        # Next cycle
-        cycle_start += TOTAL_CYCLE
+        # ---------------- CYCLE END ----------------
+        cycle_end = time.time()
+        actual = cycle_end - cycle_start
+        drift = actual - TOTAL_CYCLE
+
+        print(
+            f"[CYCLE {cycle_number} END] {format_time_from_timestamp(cycle_end)} | "
+            f"Expected: {TOTAL_CYCLE:.3f}s | "
+            f"Actual: {actual:.3f}s | "
+            f"Drift: {drift:+.3f}s"
+        )
+
         cycle_number += 1
+
 
 def main():
     root = tk.Tk()
