@@ -9,12 +9,16 @@ import sys
 import threading
 from queue import Queue
 
+# ====================== CONFIGURATION ======================
+# Unified message color for all popups and console logs
+MESSAGE_COLOR = "#000000"  # green
+CONSOLE_COLOR_CODE = "\033[92m"  # bright green for console
+CONSOLE_RESET = "\033[0m"
+
 # Get base path (works for .py and PyInstaller .exe)
 if getattr(sys, 'frozen', False):
-    # Running as compiled executable
     BASE_DIR = sys._MEIPASS
 else:
-    # Running as script - go up one level from main folder to root
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Resource paths
@@ -25,9 +29,7 @@ IMAGE2_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "2.png")
 IMAGE3_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "3.png")
 IMAGE4_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "4.png")
 
-# ============================================================================
-# TIMING CONFIGURATION - Change these values as needed
-# ============================================================================
+# ====================== TIMING CONFIGURATION ======================
 TEST_MODE = True
 
 if TEST_MODE:
@@ -39,11 +41,9 @@ else:
     BREAK_TIME = 30            # 30 seconds
     FREE_TIME = 4 * 60 + 30    # 4 minutes 30 seconds
 
-# Always calculate total cycle from the three intervals (flexible!)
 TOTAL_CYCLE = WORK_TIME + BREAK_TIME + FREE_TIME
 
-# ============================================================================
-# Initialize pygame mixer for sound (reliable in .exe)
+# ====================== INITIALIZE SOUND ======================
 pygame.init()
 pygame.mixer.init()
 
@@ -58,12 +58,10 @@ def play_sound_async(repeat=1):
     thread = threading.Thread(target=_play, daemon=True)
     thread.start()
 
-# Global queue for popup requests
+# ====================== POPUP QUEUE ======================
 popup_queue = Queue()
-
-# Animation settings
-FADE_DURATION = 1000  # not used currently, but kept for future
-DISPLAY_TIME = 3000   # 3 seconds fully visible
+FADE_DURATION = 1000
+DISPLAY_TIME = 3000
 
 def fade_in(popup, step=0.0):
     if step <= 1.0:
@@ -135,14 +133,14 @@ def create_popup(root, message, image_path):
         text=message,
         font=("Calibri Light", 12),
         bg="white",
-        fg="#2b7a2b",
+        fg=MESSAGE_COLOR,   # unified color
         wraplength=280,
         justify="center"
     )
     message_label.pack(side="left", fill="both", expand=True)
 
     fade_in(popup)
-    popup.after(DISPLAY_TIME + 1000, lambda: fade_out(popup))  # extra second for fade out
+    popup.after(DISPLAY_TIME + 1000, lambda: fade_out(popup))
 
 def show_popup(message, image_path):
     popup_queue.put((message, image_path))
@@ -156,17 +154,23 @@ def check_popup_queue(root):
         pass
     root.after(100, lambda: check_popup_queue(root))
 
+# ====================== TIME UTILITIES ======================
 def get_precise_time():
     return time.strftime('%H:%M:%S') + f".{int(time.time() % 1 * 1000):03d}"
 
 def format_time_from_timestamp(timestamp):
     return time.strftime('%H:%M:%S', time.localtime(timestamp)) + f".{int(timestamp % 1 * 1000):03d}"
 
+# ====================== CONSOLE PRINT WITH COLOR ======================
+def print_colored(msg):
+    print(f"{CONSOLE_COLOR_CODE}{msg}{CONSOLE_RESET}")
+
+# ====================== TIMER THREAD ======================
 def timer_thread():
     mode = "TEST" if TEST_MODE else "PRODUCTION"
-    print(f"=== EyeGuard Starting in {mode} MODE ===")
-    print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s | Free: {FREE_TIME}s | Total: {TOTAL_CYCLE}s")
-    print("=" * 60)
+    print_colored(f"=== EyeGuard Starting in {mode} MODE ===")
+    print_colored(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s | Free: {FREE_TIME}s | Total: {TOTAL_CYCLE}s")
+    print_colored("=" * 60)
 
     show_popup("EyeGuard is now active — helping you care for your eyes!", image_path=IMAGE1_PATH)
     play_sound_async(1)
@@ -175,13 +179,13 @@ def timer_thread():
 
     while True:
         cycle_start = time.time()
-        print(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(cycle_start)}")
+        print_colored(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(cycle_start)}")
 
         # ---------------- WORK ----------------
         target = cycle_start + WORK_TIME
         time.sleep(max(0, target - time.time()))
         now = time.time()
-        print(f"[WORK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
+        print_colored(f"[WORK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
 
         show_popup("Your eyes deserve a quick rest. Take a 30-second break!", image_path=IMAGE2_PATH)
         play_sound_async(1)
@@ -190,7 +194,7 @@ def timer_thread():
         target = cycle_start + WORK_TIME + BREAK_TIME
         time.sleep(max(0, target - time.time()))
         now = time.time()
-        print(f"[BREAK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
+        print_colored(f"[BREAK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
 
         show_popup("Eye break’s over. Enjoy 4½ minutes just for you!", image_path=IMAGE3_PATH)
         play_sound_async(1)
@@ -199,7 +203,7 @@ def timer_thread():
         target = cycle_start + WORK_TIME + BREAK_TIME + FREE_TIME
         time.sleep(max(0, target - time.time()))
         now = time.time()
-        print(f"[FREE END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
+        print_colored(f"[FREE END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
 
         show_popup("Great! Let’s get back to it, refreshed and focused!", image_path=IMAGE4_PATH)
         play_sound_async(2)
@@ -209,7 +213,7 @@ def timer_thread():
         actual = cycle_end - cycle_start
         drift = actual - TOTAL_CYCLE
 
-        print(
+        print_colored(
             f"[CYCLE {cycle_number} END] {format_time_from_timestamp(cycle_end)} | "
             f"Expected: {TOTAL_CYCLE:.3f}s | "
             f"Actual: {actual:.3f}s | "
@@ -218,7 +222,7 @@ def timer_thread():
 
         cycle_number += 1
 
-
+# ====================== MAIN ======================
 def main():
     root = tk.Tk()
     root.withdraw()
