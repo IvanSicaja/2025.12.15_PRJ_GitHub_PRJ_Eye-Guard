@@ -19,7 +19,7 @@ else:
 
 # Resource paths
 SOUND_PATH = os.path.join(BASE_DIR, "assets", "media", "sounds", "sound.mp3")
-ICON_PATH = os.path.join(BASE_DIR, "assets", "media", "icons", "shield_extrected.png")
+ICON_PATH = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.png")
 IMAGE1_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "1.png")
 IMAGE2_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "2.png")
 IMAGE3_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "3.png")
@@ -28,7 +28,7 @@ IMAGE4_PATH = os.path.join(BASE_DIR, "assets", "media", "figures", "4.png")
 # ============================================================================
 # TIMING CONFIGURATION - Change these values as needed
 # ============================================================================
-TEST_MODE = False
+TEST_MODE = True
 
 if TEST_MODE:
     WORK_TIME = 5      # seconds
