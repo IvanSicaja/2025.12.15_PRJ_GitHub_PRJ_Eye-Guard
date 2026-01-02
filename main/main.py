@@ -10,8 +10,8 @@ import threading
 from queue import Queue
 
 # ====================== CONFIGURATION ======================
-MESSAGE_COLOR = "#000000"  # popup message color
-FONT_NAME = "Montserrat"   # "Montserrat"   or "Garrett Book"
+MESSAGE_COLOR = "#222222"  # soft black for easy reading
+FONT_NAME = "Montserrat"    # or "Garrett Book"
 
 if getattr(sys, 'frozen', False):
     BASE_DIR = sys._MEIPASS
@@ -88,25 +88,27 @@ def create_popup(root, message, image_path):
     container = tk.Frame(outer_frame, bg="white", padx=10, pady=10)
     container.pack(fill="both", expand=True)
 
-    header = tk.Frame(container, bg="#f0f0f0")
+    # ---------------- Header ----------------
+    header = tk.Frame(container, bg="white")  # same as entire popup
     header.pack(fill="x", pady=(0, 5))
 
     if os.path.exists(ICON_PATH):
         icon = Image.open(ICON_PATH).resize((20, 20))
         icon_photo = ImageTk.PhotoImage(icon)
         popup.icon_photo = icon_photo
-        tk.Label(header, image=icon_photo, bg="#f0f0f0").pack(side="left", padx=(5, 5))
+        tk.Label(header, image=icon_photo, bg="white").pack(side="left", padx=(5, 5))
 
-    # ------------ Header Text Fixed Size (previous size, not bold) ------------
+    # ------------ Header Text Same Color as Message ------------
     title_label = tk.Label(
         header,
         text="EyeGuard",
         font=(FONT_NAME, 10),  # previous size
-        bg="#f0f0f0",
-        fg="#2b2b2b"
+        bg="white",
+        fg=MESSAGE_COLOR  # same as main text
     )
     title_label.pack(side="left")
 
+    # ---------------- Content ----------------
     content = tk.Frame(container, bg="white")
     content.pack(fill="both", expand=True)
 
@@ -121,7 +123,7 @@ def create_popup(root, message, image_path):
         text=message,
         font=(FONT_NAME, 12),
         bg="white",
-        fg=MESSAGE_COLOR,
+        fg=MESSAGE_COLOR,  # soft black
         wraplength=280,
         justify="center"
     )
