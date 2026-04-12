@@ -1,0 +1,38 @@
+{
+  "work_time": 25,
+  "break_time": 3,
+  "free_time": 2,
+  "test_mode": true,
+  "font_name": "Montserrat",
+  "message_color": "#222222",
+  "popups": [
+    {
+      "trigger": "start",
+      "message": "EyeGuard is now active — helping you care for your eyes!",
+      "image": "1.png",
+      "sound": "sound.mp3",
+      "sound_repeat": 1
+    },
+    {
+      "trigger": "work_end",
+      "message": "Your eyes deserve a quick rest. Take a 30-second break!",
+      "image": "2.png",
+      "sound": "sound.mp3",
+      "sound_repeat": 1
+    },
+    {
+      "trigger": "break_end",
+      "message": "Eye break's over. Enjoy 4½ minutes just for you!",
+      "image": "3.png",
+      "sound": "sound.mp3",
+      "sound_repeat": 1
+    },
+    {
+      "trigger": "free_end",
+      "message": "Great! Let's get back to it, refreshed and focused!",
+      "image": "4.png",
+      "sound": "sound.mp3",
+      "sound_repeat": 2
+    }
+  ]
+}

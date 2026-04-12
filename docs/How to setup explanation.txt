@@ -38,7 +38,7 @@ In the right panel, click Create Task… (not Basic Task).
 
         Add arguments:
             (Copy the entire following line bellow and replace there 'C:\Full\Path\To\EyeGuard.exe' with the full absolute path to your .exe file.)
-            -Command "Get-Process EyeGuard -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill() }; Start-Sleep -Seconds 2; Start-Process 'C:\Users\Sicaja\Desktop\DB\DB-Bussiness\2019.01.01_SmartCodeACADEMY\1.0_Projects\2025.12.15_PRJ_GitHub_PRJ_Eye-Guard\publish\EyeGuard.exe'"
+            -Command "Get-Process EyeGuard -ErrorAction SilentlyContinue | ForEach-Object { $_.Kill() }; Start-Sleep -Seconds 2; Start-Process 'C:\Users\Sicaja\Desktop\DB\DB-Bussiness\2019.01.01_SmartCodeACADEMY_Official\2025.12.15_PRJ_GitHub_PRJ_Eye-Guard\publish\EyeGuard.exe'"
 
         Press: OK
 
