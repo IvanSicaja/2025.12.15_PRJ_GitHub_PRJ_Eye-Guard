@@ -103,6 +103,24 @@ def get_break_milestones(cfg):
     return [p for p in cfg.get("popups", []) if p.get("trigger") == "break_end"]
 
 
+# ====================== SHARED TIMER SPINBOX HELPER ======================
+
+def _make_linked_spinbox(parent, shared_var, from_, to, bg, font):
+    """
+    Return a Spinbox that reads/writes *shared_var* — the same StringVar
+    used in Timer Settings, so both widgets always show the same value.
+    """
+    sb = tk.Spinbox(
+        parent,
+        from_=from_, to=to, width=5,
+        textvariable=shared_var,
+        font=font,
+        relief="solid", bd=1, highlightthickness=0,
+        bg=bg,
+    )
+    return sb
+
+
 # ====================== BREAK MILESTONE MANAGER ======================
 
 class BreakMilestoneManager:
@@ -110,6 +128,9 @@ class BreakMilestoneManager:
     Renders break milestone entries directly into a given parent frame
     (the shared scroll_frame). No inner canvas/scrollbar — the parent
     handles scrolling. Supports add, delete, move up/down.
+
+    Each milestone card contains a linked spinbox for Break Time that
+    shares the same StringVar as the Timer Settings Break Time spinbox.
     """
 
     PANEL      = "#ffffff"
@@ -119,21 +140,25 @@ class BreakMilestoneManager:
     BORDER     = "#e0e0e0"
     FONT_MAIN  = ("Segoe UI", 10)
     FONT_TITLE = ("Segoe UI Semibold", 11)
+    CARD_BG    = "#f0f4ff"
 
     def __init__(self, parent, figures, sounds,
-                 divider_widget, after_widgets):
+                 divider_widget, after_widgets,
+                 var_break):
         """
         parent         – the scroll_frame to pack into
         figures        – list of image filenames
         sounds         – list of sound filenames
         divider_widget – the tk.Frame divider that must always stay after milestones
         after_widgets  – list of tk widgets (free_end section) that must stay after divider
+        var_break      – shared StringVar for break_time (same as Timer Settings)
         """
         self.parent         = parent
         self.figures        = figures
         self.sounds         = sounds
         self._divider       = divider_widget
         self._after_widgets = after_widgets
+        self._var_break     = var_break
         self._entries       = []
 
         self._build_header()
@@ -202,23 +227,22 @@ class BreakMilestoneManager:
     def _build_entry_frame(self, entry):
         frame = tk.Frame(self.parent, bg=self.PANEL)
 
-        card = tk.Frame(frame, bg="#f0f4ff", relief="flat", bd=0,
+        card = tk.Frame(frame, bg=self.CARD_BG, relief="flat", bd=0,
                         highlightbackground="#c5d5f5", highlightthickness=1)
         card.pack(fill="x", padx=6, pady=3, ipady=5, ipadx=8)
 
-        # Top row
-        top_row = tk.Frame(card, bg="#f0f4ff")
+        # ── Top row: index label + control buttons ──
+        top_row = tk.Frame(card, bg=self.CARD_BG)
         top_row.pack(fill="x", pady=(0, 4))
 
         idx_lbl = tk.Label(top_row, text="", font=("Segoe UI Semibold", 9),
-                           bg="#f0f4ff", fg=self.ACCENT)
+                           bg=self.CARD_BG, fg=self.ACCENT)
         idx_lbl.pack(side="left")
         entry["_idx_label"] = idx_lbl
 
         btn_cfg = dict(font=("Segoe UI", 9), relief="flat", cursor="hand2",
                        padx=6, pady=2, bd=0)
-
-        btn_frame = tk.Frame(top_row, bg="#f0f4ff")
+        btn_frame = tk.Frame(top_row, bg=self.CARD_BG)
         btn_frame.pack(side="right")
 
         tk.Button(btn_frame, text="▲", bg="#e8e8e8", fg=self.FG,
@@ -232,25 +256,38 @@ class BreakMilestoneManager:
                   **btn_cfg,
                   command=lambda: self._delete_entry(entry)).pack(side="left", padx=(6, 0))
 
-        # Message
-        r_msg = tk.Frame(card, bg="#f0f4ff")
+        # ── Break Time (shared variable) ──
+        r_bt = tk.Frame(card, bg=self.CARD_BG)
+        r_bt.pack(fill="x", pady=2)
+        tk.Label(r_bt, text="Break Time (min)", font=self.FONT_MAIN, bg=self.CARD_BG,
+                 fg=self.ACCENT, width=18, anchor="w").pack(side="left")
+        _make_linked_spinbox(r_bt, self._var_break,
+                             from_=1, to=60,
+                             bg=self.CARD_BG,
+                             font=self.FONT_MAIN).pack(side="left")
+        tk.Label(r_bt, text="  ← shared with Timer Settings",
+                 font=("Segoe UI", 8), bg=self.CARD_BG, fg=self.FG_LIGHT
+                 ).pack(side="left", padx=(6, 0))
+
+        # ── Message ──
+        r_msg = tk.Frame(card, bg=self.CARD_BG)
         r_msg.pack(fill="x", pady=2)
-        tk.Label(r_msg, text="Message", font=self.FONT_MAIN, bg="#f0f4ff",
-                 fg=self.FG, width=14, anchor="w").pack(side="left")
-        tk.Entry(r_msg, textvariable=entry["message"], width=42,
+        tk.Label(r_msg, text="Message", font=self.FONT_MAIN, bg=self.CARD_BG,
+                 fg=self.FG, width=18, anchor="w").pack(side="left")
+        tk.Entry(r_msg, textvariable=entry["message"], width=38,
                  font=self.FONT_MAIN, relief="solid", bd=1,
                  highlightthickness=0).pack(side="left", fill="x", expand=True)
 
-        # Image
-        r_img = tk.Frame(card, bg="#f0f4ff")
+        # ── Image ──
+        r_img = tk.Frame(card, bg=self.CARD_BG)
         r_img.pack(fill="x", pady=2)
-        tk.Label(r_img, text="Image", font=self.FONT_MAIN, bg="#f0f4ff",
-                 fg=self.FG, width=14, anchor="w").pack(side="left")
+        tk.Label(r_img, text="Image", font=self.FONT_MAIN, bg=self.CARD_BG,
+                 fg=self.FG, width=18, anchor="w").pack(side="left")
         ttk.Combobox(r_img, textvariable=entry["image"],
                      values=self.figures, width=20,
                      font=self.FONT_MAIN, state="normal").pack(side="left")
 
-        preview_lbl = tk.Label(r_img, bg="#f0f4ff")
+        preview_lbl = tk.Label(r_img, bg=self.CARD_BG)
         preview_lbl.pack(side="left", padx=(8, 0))
 
         def _make_updater(lbl, sv):
@@ -272,16 +309,16 @@ class BreakMilestoneManager:
         entry["image"].trace_add("write", updater)
         updater()
 
-        # Sound + Repeat
-        r_snd = tk.Frame(card, bg="#f0f4ff")
+        # ── Sound + Repeat ──
+        r_snd = tk.Frame(card, bg=self.CARD_BG)
         r_snd.pack(fill="x", pady=2)
-        tk.Label(r_snd, text="Sound", font=self.FONT_MAIN, bg="#f0f4ff",
-                 fg=self.FG, width=14, anchor="w").pack(side="left")
+        tk.Label(r_snd, text="Sound", font=self.FONT_MAIN, bg=self.CARD_BG,
+                 fg=self.FG, width=18, anchor="w").pack(side="left")
         ttk.Combobox(r_snd, textvariable=entry["sound"],
                      values=self.sounds, width=20,
                      font=self.FONT_MAIN, state="normal").pack(side="left")
         tk.Label(r_snd, text="  Repeat", font=self.FONT_MAIN,
-                 bg="#f0f4ff", fg=self.FG).pack(side="left")
+                 bg=self.CARD_BG, fg=self.FG).pack(side="left")
         tk.Spinbox(r_snd, from_=1, to=10, width=4,
                    textvariable=entry["sound_repeat"],
                    font=self.FONT_MAIN, relief="solid", bd=1,
@@ -303,11 +340,7 @@ class BreakMilestoneManager:
         self._repack()
 
     def _repack(self):
-        """
-        Re-pack everything in the correct order:
-          header → [entries in order] (or empty label) → divider → after_widgets
-        """
-        # Unpack all managed widgets
+        """Re-pack: header → entries (or empty label) → divider → after_widgets."""
         self._empty_label.pack_forget()
         for e in self._entries:
             e["frame"].pack_forget()
@@ -315,7 +348,6 @@ class BreakMilestoneManager:
         for w in self._after_widgets:
             w.pack_forget()
 
-        # Re-pack entries (or empty label)
         if not self._entries:
             self._empty_label.pack(fill="x", padx=8, pady=6)
         else:
@@ -323,10 +355,7 @@ class BreakMilestoneManager:
                 e["frame"].pack(fill="x")
                 e["_idx_label"].config(text=f"Milestone #{i + 1}")
 
-        # Divider
         self._divider.pack(fill="x", pady=(6, 6), padx=2)
-
-        # After-widgets (free_end section)
         for w in self._after_widgets:
             w.pack(fill="x", pady=(0, 8), padx=2)
 
@@ -343,8 +372,6 @@ class BreakMilestoneManager:
 
         for data in milestone_list:
             self._add_entry(data)
-
-        # _add_entry calls _repack each time; final state is correct after loop.
 
     def collect_milestones(self):
         """Return milestones in current display order."""
@@ -431,8 +458,19 @@ class ConfigApp(tk.Tk):
         return tk.Entry(parent, width=width, font=self.FONT_MAIN,
                         relief="solid", bd=1, highlightthickness=0, **kw)
 
-    def _build_fixed_popup_section(self, parent, trigger, figures, sounds, pack=True):
-        """Build one fixed popup LabelFrame into parent. Returns (section_widget, vars_dict)."""
+    def _build_fixed_popup_section(self, parent, trigger, figures, sounds,
+                                   pack=True, extra_timer_var=None,
+                                   extra_timer_label=None, extra_timer_range=None):
+        """
+        Build one fixed popup LabelFrame into parent.
+        Returns (section_widget, vars_dict).
+
+        If extra_timer_var is given, a linked timer spinbox row is prepended
+        inside the section (shared with Timer Settings).
+          extra_timer_var   – the shared StringVar
+          extra_timer_label – label text, e.g. "Work Time (min)"
+          extra_timer_range – (from_, to) tuple
+        """
         section = tk.LabelFrame(
             parent,
             text=f"  {TRIGGER_LABELS[trigger]}  ",
@@ -444,7 +482,26 @@ class ConfigApp(tk.Tk):
         if pack:
             section.pack(fill="x", pady=(0, 8), padx=2)
 
-        # Message
+        # ── Optional linked timer spinbox ──
+        if extra_timer_var is not None:
+            from_, to = extra_timer_range or (1, 240)
+            t_row = tk.Frame(section, bg=self.PANEL)
+            t_row.pack(fill="x", pady=3)
+            tk.Label(t_row, text=extra_timer_label, font=self.FONT_MAIN,
+                     bg=self.PANEL, fg=self.ACCENT,
+                     width=14, anchor="w").pack(side="left")
+            _make_linked_spinbox(t_row, extra_timer_var,
+                                 from_=from_, to=to,
+                                 bg=self.PANEL,
+                                 font=self.FONT_MAIN).pack(side="left")
+            tk.Label(t_row, text="  ← shared with Timer Settings",
+                     font=("Segoe UI", 8), bg=self.PANEL, fg=self.FG_LIGHT
+                     ).pack(side="left", padx=(6, 0))
+
+            # Thin separator after timer row
+            tk.Frame(section, height=1, bg=self.BORDER).pack(fill="x", pady=(4, 6))
+
+        # ── Message ──
         msg_row = tk.Frame(section, bg=self.PANEL)
         msg_row.pack(fill="x", pady=3)
         tk.Label(msg_row, text="Message", font=self.FONT_MAIN,
@@ -454,7 +511,7 @@ class ConfigApp(tk.Tk):
                  font=self.FONT_MAIN, relief="solid", bd=1,
                  highlightthickness=0).pack(side="left", fill="x", expand=True)
 
-        # Image
+        # ── Image ──
         img_row = tk.Frame(section, bg=self.PANEL)
         img_row.pack(fill="x", pady=3)
         tk.Label(img_row, text="Image", font=self.FONT_MAIN,
@@ -485,7 +542,7 @@ class ConfigApp(tk.Tk):
         updater = _make_preview_updater(preview_lbl, var_img)
         var_img.trace_add("write", updater)
 
-        # Sound
+        # ── Sound ──
         snd_row = tk.Frame(section, bg=self.PANEL)
         snd_row.pack(fill="x", pady=3)
         tk.Label(snd_row, text="Sound", font=self.FONT_MAIN,
@@ -537,6 +594,8 @@ class ConfigApp(tk.Tk):
         card, pane = self._card(left, title="⏱  Timer Settings (minutes)")
         card.pack(fill="x", pady=(0, 10))
 
+        # These three StringVars are THE single source of truth for all three
+        # time values. They are reused (shared) inside the popup sections below.
         self.var_work  = tk.StringVar()
         self.var_break = tk.StringVar()
         self.var_free  = tk.StringVar()
@@ -611,36 +670,48 @@ class ConfigApp(tk.Tk):
         canvas.bind("<Leave>",
                     lambda e: canvas.unbind_all("<MouseWheel>"))
 
-        # ── Build sections in order: start → work_end → [milestones] → free_end ──
+        # ── Build sections in order:
+        #    start → work_end (+ Work Time spinbox) → [milestones (+ Break Time spinbox)] → free_end (+ Free Time spinbox)
         self._popup_frames = {}
 
-        # start, work_end — packed immediately
-        for trigger in FIXED_TRIGGERS_BEFORE:
-            section, vars_dict = self._build_fixed_popup_section(
-                scroll_frame, trigger, figures, sounds, pack=True
-            )
-            self._popup_frames[trigger] = vars_dict
+        # "start" — no linked timer
+        section_start, vars_start = self._build_fixed_popup_section(
+            scroll_frame, "start", figures, sounds, pack=True
+        )
+        self._popup_frames["start"] = vars_start
 
-        # Divider between milestones and free_end (created but NOT packed yet;
-        # BreakMilestoneManager will own its packing order)
+        # "work_end" — linked to var_work
+        section_work, vars_work = self._build_fixed_popup_section(
+            scroll_frame, "work_end", figures, sounds, pack=True,
+            extra_timer_var=self.var_work,
+            extra_timer_label="Work Time (min)",
+            extra_timer_range=(1, 240),
+        )
+        self._popup_frames["work_end"] = vars_work
+
+        # Divider between milestones and free_end (ownership passed to manager)
         divider = tk.Frame(scroll_frame, height=2, bg=self.BORDER)
 
-        # free_end section — created but NOT packed yet
+        # "free_end" — linked to var_free — NOT packed yet (manager owns packing)
         free_section, free_vars = self._build_fixed_popup_section(
-            scroll_frame, "free_end", figures, sounds, pack=False
+            scroll_frame, "free_end", figures, sounds, pack=False,
+            extra_timer_var=self.var_free,
+            extra_timer_label="Free Time (min)",
+            extra_timer_range=(1, 60),
         )
         self._popup_frames["free_end"] = free_vars
 
-        # BreakMilestoneManager — takes ownership of divider + free_section packing
+        # BreakMilestoneManager — linked to var_break — owns divider + free_section packing
         self._milestone_manager = BreakMilestoneManager(
             scroll_frame,
             figures=figures,
             sounds=sounds,
             divider_widget=divider,
             after_widgets=[free_section],
+            var_break=self.var_break,
         )
 
-        # Buttons ──────────────────────────────────────────────────────
+        # ── Buttons ───────────────────────────────────────────────────
         btn_bar = tk.Frame(self, bg=self.BG)
         btn_bar.pack(fill="x", padx=18, pady=(0, 14))
 
