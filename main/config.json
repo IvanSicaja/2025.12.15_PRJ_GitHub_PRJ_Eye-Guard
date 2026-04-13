@@ -1,8 +1,8 @@
 {
-  "work_time": 25,
-  "break_time": 3,
-  "free_time": 2,
-  "test_mode": true,
+  "work_time_min": 25,
+  "work_time_sec": 0,
+  "popup_opacity": 50,
+  "test_mode": false,
   "font_name": "Montserrat",
   "message_color": "#222222",
   "popups": [
@@ -25,14 +25,18 @@
       "message": "Eye break's over. Enjoy 4½ minutes just for you!",
       "image": "3.png",
       "sound": "sound.mp3",
-      "sound_repeat": 1
+      "sound_repeat": 1,
+      "duration_min": 3,
+      "duration_sec": 0
     },
     {
-      "trigger": "free_end",
+      "trigger": "break_end",
       "message": "Great! Let's get back to it, refreshed and focused!",
       "image": "4.png",
       "sound": "sound.mp3",
-      "sound_repeat": 2
+      "sound_repeat": 2,
+      "duration_min": 2,
+      "duration_sec": 0
     }
   ]
 }
