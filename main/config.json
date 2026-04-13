@@ -2,7 +2,8 @@
   "work_time_min": 25,
   "work_time_sec": 0,
   "popup_opacity": 90,
-  "test_mode": true,
+  "test_mode": false,
+  "cycle_align": true,
   "font_name": "Montserrat",
   "message_color": "#222222",
   "popups": [
@@ -22,7 +23,7 @@
     },
     {
       "trigger": "break_end",
-      "message": "Eye break's over. Enjoy 4 minutes just for you!",
+      "message": "Eye break's over. Enjoy 4½ minutes just for you!",
       "image": "3.png",
       "sound": "sound.mp3",
       "sound_repeat": 1,

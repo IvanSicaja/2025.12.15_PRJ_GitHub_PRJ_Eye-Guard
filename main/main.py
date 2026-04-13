@@ -24,6 +24,7 @@ DEFAULT_CONFIG = {
     "work_time_sec":    0,
     "popup_opacity":  100,
     "test_mode":    False,
+    "cycle_align":  False,
     "font_name":    "Montserrat",
     "message_color": "#222222",
     "popups": [
@@ -115,6 +116,9 @@ else:
 
 BREAK_TIME  = sum(MILESTONE_DURATIONS)
 TOTAL_CYCLE = WORK_TIME + BREAK_TIME
+
+# Cycle alignment: snap so the last milestone popup fires on a clean clock grid
+CYCLE_ALIGN = CONFIG.get("cycle_align", False) and not TEST_MODE
 
 POPUPS = CONFIG.get("popups", DEFAULT_CONFIG["popups"])
 
@@ -248,6 +252,61 @@ def fire_popup(trigger=None, popup_data=None):
             popup_data.get("sound_repeat", 1)
         )
 
+def seconds_since_midnight():
+    """Current local time expressed as seconds since 00:00:00 today."""
+    t = time.localtime()
+    return t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec
+
+
+def find_aligned_cycle_start_wall():
+    """
+    Work backwards from the next valid grid boundary to find the wall-clock
+    time at which the aligned cycle should START (= when work phase begins).
+
+    Grid boundaries are multiples of TOTAL_CYCLE anchored to midnight, e.g.
+    for a 30-minute cycle: 00:00, 00:30, 01:00, … 08:00, 08:30, 09:00 …
+
+    The boundary we pick is the FIRST one that satisfies:
+        boundary_wall_time >= now  (the last milestone hasn't fired yet)
+
+    If now is already past a boundary (e.g. the last milestone for the 08:30
+    boundary should have fired at 08:30 but it's now 08:32), we move to the
+    NEXT boundary (09:00) automatically.
+
+    Returns (cycle_start_wall, boundary_wall) as time.time() values.
+    """
+    import math
+
+    now_wall = time.time()
+    now_sm   = seconds_since_midnight()   # seconds since midnight right now
+
+    # Midnight as a wall-clock timestamp
+    midnight_wall = now_wall - now_sm
+
+    # Candidate boundary index: ceil so boundary >= now
+    candidate_idx = math.ceil(now_sm / TOTAL_CYCLE)
+    # Ensure the boundary is strictly in the future (>=1 second away),
+    # because if we're right on a boundary the popup has just fired.
+    boundary_sm   = candidate_idx * TOTAL_CYCLE
+    boundary_wall = midnight_wall + boundary_sm
+
+    if boundary_wall <= now_wall + 1:
+        # Already at or past this boundary — use next one
+        candidate_idx += 1
+        boundary_sm    = candidate_idx * TOTAL_CYCLE
+        boundary_wall  = midnight_wall + boundary_sm
+
+    # Cycle starts TOTAL_CYCLE seconds before the boundary
+    cycle_start_wall = boundary_wall - TOTAL_CYCLE
+
+    return cycle_start_wall, boundary_wall
+
+
+def fmt_wall(wall_time):
+    """Format a wall-clock timestamp as HH:MM:SS."""
+    return time.strftime('%H:%M:%S', time.localtime(wall_time))
+
+
 def timer_thread():
     mode = "TEST" if TEST_MODE else "PRODUCTION"
     print(f"=== EyeGuard Starting in {mode} MODE ===")
@@ -262,17 +321,109 @@ def timer_thread():
               f"({len(BREAK_MILESTONES)} milestones: {durations_str}) | "
               f"Total: {TOTAL_CYCLE}s")
     print(f"Popup opacity: {_opacity_pct}%")
+    print(f"Cycle alignment: {'ON' if CYCLE_ALIGN else 'OFF'}")
     print("=" * 60)
 
+    # ── Start popup (always fires immediately) ────────────────────────
     fire_popup("start")
 
-    cycle_number = 1
+    # ──────────────────────────────────────────────────────────────────
+    # ALIGNED FIRST CYCLE
+    # ──────────────────────────────────────────────────────────────────
+    if CYCLE_ALIGN:
+        cycle_start_wall, boundary_wall = find_aligned_cycle_start_wall()
+        now_wall = time.time()
+
+        print(f"\n[ALIGN] Target boundary (last milestone fires): {fmt_wall(boundary_wall)}")
+        print(f"[ALIGN] Aligned cycle start: {fmt_wall(cycle_start_wall)}")
+
+        # Build absolute wall-clock targets for every event in this first cycle
+        # working BACKWARDS from the boundary:
+        #   last_milestone  → boundary_wall
+        #   prev milestone  → boundary_wall - dur_last
+        #   ...
+        #   work_end        → boundary_wall - BREAK_TIME
+        #   cycle_start     → boundary_wall - TOTAL_CYCLE
+        milestone_fire_walls = []
+        t = boundary_wall
+        for dur in reversed(MILESTONE_DURATIONS):
+            milestone_fire_walls.insert(0, t)
+            t -= dur
+        work_end_wall = boundary_wall - BREAK_TIME  # = cycle_start_wall + WORK_TIME
+
+        # Log the full schedule
+        print(f"[ALIGN] Work End  fires at: {fmt_wall(work_end_wall)}")
+        for i, fw in enumerate(milestone_fire_walls):
+            print(f"[ALIGN] Milestone {i+1} fires at: {fmt_wall(fw)}")
+
+        # --- Work phase ---
+        if work_end_wall > now_wall:
+            wait = work_end_wall - now_wall
+            print(f"[ALIGN] Waiting {wait:.1f}s for Work End at {fmt_wall(work_end_wall)}")
+            # Sleep in small chunks so we stay accurate
+            end_pc = time.perf_counter() + wait
+            while True:
+                rem = end_pc - time.perf_counter()
+                if rem <= 0:
+                    break
+                time.sleep(min(rem, 0.5))
+        else:
+            print(f"[ALIGN] Work End already past ({fmt_wall(work_end_wall)}), skipping directly to milestones")
+
+        print(f"[WORK END] {format_time_from_timestamp(time.time())} "
+              f"(target {fmt_wall(work_end_wall)})")
+        fire_popup("work_end")
+
+        # --- Milestone phases ---
+        for idx, (milestone, fire_wall) in enumerate(
+                zip(BREAK_MILESTONES, milestone_fire_walls)):
+            now_wall = time.time()
+            if fire_wall > now_wall:
+                wait   = fire_wall - now_wall
+                end_pc = time.perf_counter() + wait
+                while True:
+                    rem = end_pc - time.perf_counter()
+                    if rem <= 0:
+                        break
+                    time.sleep(min(rem, 0.5))
+
+            actual_drift = time.time() - fire_wall
+            print(f"[MILESTONE {idx+1} END] {format_time_from_timestamp(time.time())} "
+                  f"(target {fmt_wall(fire_wall)} | drift {actual_drift:+.3f}s)")
+            fire_popup(popup_data=milestone)
+
+        print(f"[ALIGN] Aligned cycle complete. "
+              f"Last milestone fired at {format_time_from_timestamp(time.time())}")
+
+        # After aligned first cycle, all subsequent cycles run normally
+        # starting exactly at boundary_wall
+        first_normal_cycle_start_wall = boundary_wall
+
+    # ──────────────────────────────────────────────────────────────────
+    # NORMAL CYCLE LOOP (unaligned, or continuing after aligned first cycle)
+    # ──────────────────────────────────────────────────────────────────
+    cycle_number = 1 if not CYCLE_ALIGN else 2
+
+    # For the first normal cycle: if aligned, we start exactly at boundary;
+    # if not aligned, we start right now.
+    if CYCLE_ALIGN:
+        # Sleep precisely until boundary_wall before starting next cycle
+        now_wall = time.time()
+        gap = first_normal_cycle_start_wall - now_wall
+        if gap > 0:
+            end_pc = time.perf_counter() + gap
+            while True:
+                rem = end_pc - time.perf_counter()
+                if rem <= 0:
+                    break
+                time.sleep(min(rem, 0.5))
+
     while True:
-        cycle_start = time.perf_counter()   # high-resolution monotonic clock
+        cycle_start = time.perf_counter()
         wall_start  = time.time()
         print(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(wall_start)}")
 
-        # ── Work phase — target is absolute offset from cycle_start ──
+        # Work phase
         work_target = cycle_start + WORK_TIME
         sleep_dur   = work_target - time.perf_counter()
         if sleep_dur > 0:
@@ -284,19 +435,18 @@ def timer_thread():
               f"drift {drift:+.6f}s")
         fire_popup("work_end")
 
-        # ── Break phase — each milestone target is absolute from cycle_start ──
-        # Accumulated offset starts right after work phase
+        # Milestone phases
         accum = WORK_TIME
         for idx, (milestone, dur) in enumerate(
                 zip(BREAK_MILESTONES, MILESTONE_DURATIONS)):
-            accum        += dur
-            ms_target     = cycle_start + accum
-            sleep_dur     = ms_target - time.perf_counter()
+            accum    += dur
+            ms_target = cycle_start + accum
+            sleep_dur = ms_target - time.perf_counter()
             if sleep_dur > 0:
                 time.sleep(sleep_dur)
             elapsed = time.perf_counter() - cycle_start
             drift   = elapsed - accum
-            print(f"[MILESTONE {idx + 1} END]  "
+            print(f"[MILESTONE {idx+1} END]  "
                   f"{format_time_from_timestamp(time.time())} | "
                   f"expected +{accum:.3f}s | actual +{elapsed:.3f}s | "
                   f"drift {drift:+.6f}s")

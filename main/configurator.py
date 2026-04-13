@@ -39,6 +39,7 @@ DEFAULT_CONFIG = {
     "work_time_sec":    0,
     "popup_opacity":  100,
     "test_mode":    False,
+    "cycle_align":  False,
     "font_name":    "Montserrat",
     "message_color": "#222222",
     "popups": [
@@ -461,7 +462,8 @@ class ConfigApp(tk.Tk):
 
         self.cfg         = load_config()
         self._timer_rows = []   # [(frame, lbl)] per milestone timer row
-        self.var_test    = tk.BooleanVar()   # declared early so Advanced Features can reference it
+        self.var_test       = tk.BooleanVar()   # declared early so Advanced Features can reference it
+        self.var_cycle_align = tk.BooleanVar()  # declared early so Advanced Features can reference it
 
         self._build_ui()
         self._populate()
@@ -829,6 +831,19 @@ class ConfigApp(tk.Tk):
                  font=("Segoe UI", 8), bg=self.PANEL,
                  fg=self.FG_LIGHT).pack(side="left")
 
+        # Cycle Alignment toggle
+        ca_row = tk.Frame(pane3, bg=self.PANEL)
+        ca_row.pack(fill="x", pady=(0, 8))
+        tk.Label(ca_row, text="30-Min Alignment",
+                 font=self.FONT_MAIN, bg=self.PANEL, fg=self.FG,
+                 width=18, anchor="w").pack(side="left")
+        ToggleSwitch(ca_row, variable=self.var_cycle_align,
+                     bg=self.PANEL).pack(side="left")
+        tk.Label(ca_row,
+                 text="  Last milestone snaps to :00/:30 clock marks",
+                 font=("Segoe UI", 8), bg=self.PANEL,
+                 fg=self.FG_LIGHT).pack(side="left")
+
         # Separator
         tk.Frame(pane3, height=1, bg=self.BORDER).pack(fill="x", pady=(0, 8))
 
@@ -917,6 +932,7 @@ class ConfigApp(tk.Tk):
         self.var_work_sec.set(str(self.cfg.get("work_time_sec", 0)))
         self.var_opacity.set(int(self.cfg.get("popup_opacity", 100)))
         self.var_test.set(self.cfg.get("test_mode", False))
+        self.var_cycle_align.set(self.cfg.get("cycle_align", False))
         self.var_font.set(self.cfg.get("font_name", "Montserrat"))
         self.var_color.set(self.cfg.get("message_color", "#222222"))
 
@@ -962,6 +978,7 @@ class ConfigApp(tk.Tk):
             "work_time_sec":  work_sec,
             "popup_opacity":  max(10, min(100, self.var_opacity.get())),
             "test_mode":      self.var_test.get(),
+            "cycle_align":    self.var_cycle_align.get(),
             "font_name":      self.var_font.get().strip(),
             "message_color":  self.var_color.get().strip(),
             "popups":         popups,
