@@ -1,7 +1,7 @@
 {
   "work_time_min": 25,
   "work_time_sec": 0,
-  "popup_opacity": 50,
+  "popup_opacity": 90,
   "test_mode": true,
   "font_name": "Montserrat",
   "message_color": "#222222",

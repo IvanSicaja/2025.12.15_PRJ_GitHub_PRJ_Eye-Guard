@@ -339,6 +339,98 @@ class BreakMilestoneManager:
         return self._entries
 
 
+# ====================== ANDROID-STYLE TOGGLE SWITCH ======================
+
+class ToggleSwitch(tk.Canvas):
+    """
+    A smooth animated Android-style toggle switch.
+    Shares a tk.BooleanVar with other widgets.
+    """
+    W, H   = 46, 24          # overall dimensions
+    PAD    = 3                # padding around the thumb
+    ON_BG  = "#1a73e8"        # blue when ON
+    OFF_BG = "#cccccc"        # grey when OFF
+    THUMB  = "#ffffff"
+    STEPS  = 8               # animation frames
+
+    def __init__(self, parent, variable, **kwargs):
+        super().__init__(parent,
+                         width=self.W, height=self.H,
+                         highlightthickness=0,
+                         bd=0, **kwargs)
+        self._var      = variable
+        self._animating = False
+
+        r = self.H / 2
+        # Track rounded rectangle (two arcs + rectangle)
+        self._track = self.create_rounded_rect(0, 0, self.W, self.H, r,
+                                               fill=self.OFF_BG, outline="")
+        # Thumb circle
+        ty = self.PAD
+        tx = self.PAD
+        self._thumb = self.create_oval(tx, ty,
+                                       tx + self.H - 2*self.PAD,
+                                       ty + self.H - 2*self.PAD,
+                                       fill=self.THUMB, outline="")
+
+        self.bind("<Button-1>", self._on_click)
+        self._var.trace_add("write", self._on_var_change)
+        self._apply_state(animate=False)
+
+    def create_rounded_rect(self, x1, y1, x2, y2, r, **kw):
+        pts = [x1+r, y1,
+               x2-r, y1,
+               x2,   y1,
+               x2,   y1+r,
+               x2,   y2-r,
+               x2,   y2,
+               x2-r, y2,
+               x1+r, y2,
+               x1,   y2,
+               x1,   y2-r,
+               x1,   y1+r,
+               x1,   y1]
+        return self.create_polygon(pts, smooth=True, **kw)
+
+    def _on_click(self, _=None):
+        self._var.set(not self._var.get())
+
+    def _on_var_change(self, *_):
+        self._apply_state(animate=True)
+
+    def _apply_state(self, animate=True):
+        on = self._var.get()
+        target_x = self.W - self.H + self.PAD if on else self.PAD
+        target_color = self.ON_BG if on else self.OFF_BG
+
+        if animate and not self._animating:
+            self._animate_to(target_x, target_color, self.STEPS)
+        else:
+            self._set_thumb_x(target_x)
+            self.itemconfig(self._track, fill=target_color)
+
+    def _animate_to(self, target_x, target_color, steps_left):
+        if steps_left <= 0:
+            self._set_thumb_x(target_x)
+            self.itemconfig(self._track, fill=target_color)
+            self._animating = False
+            return
+        self._animating = True
+        coords = self.coords(self._thumb)
+        cur_x  = coords[0]
+        new_x  = cur_x + (target_x - cur_x) / steps_left
+        self._set_thumb_x(new_x)
+        # Interpolate track colour
+        self.itemconfig(self._track, fill=target_color)
+        self.after(16, lambda: self._animate_to(target_x, target_color,
+                                                steps_left - 1))
+
+    def _set_thumb_x(self, x):
+        y = self.PAD
+        d = self.H - 2 * self.PAD
+        self.coords(self._thumb, x, y, x + d, y + d)
+
+
 # ====================== GUI ======================
 
 class ConfigApp(tk.Tk):
@@ -369,15 +461,16 @@ class ConfigApp(tk.Tk):
 
         self.cfg         = load_config()
         self._timer_rows = []   # [(frame, lbl)] per milestone timer row
+        self.var_test    = tk.BooleanVar()   # declared early so Advanced Features can reference it
 
         self._build_ui()
         self._populate()
 
-        # Set window to ~88% of screen height, centred on screen
+        # Set window to ~88% of screen height, wider for readability, centred
         self.update_idletasks()
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
-        win_w    = self.winfo_reqwidth()
+        win_w    = max(self.winfo_reqwidth(), 1240)
         win_h    = int(screen_h * 0.88)
         x        = (screen_w - win_w) // 2
         y        = (screen_h - win_h) // 2
@@ -539,8 +632,7 @@ class ConfigApp(tk.Tk):
         """Sync milestone duration rows in Timer Settings with current entries."""
         entries = self._milestone_manager.entries
 
-        # Detach Test Mode and totals rows temporarily
-        self._test_mode_row.pack_forget()
+        # Detach totals rows temporarily
         self._total_break_row.pack_forget()
         self._total_cycle_row.pack_forget()
 
@@ -566,10 +658,9 @@ class ConfigApp(tk.Tk):
             entry["duration_sec"].trace_add("write", self._update_totals)
             self._timer_rows.append((row, lbl))
 
-        # Re-pack Total Break, Total Cycle, Test Mode at the bottom
+        # Re-pack Total Break, Total Cycle at the bottom
         self._total_break_row.pack(fill="x", pady=4)
         self._total_cycle_row.pack(fill="x", pady=4)
-        self._test_mode_row.pack(fill="x", pady=4)
 
         self._update_totals()
         # Update scroll region and conditionally show/hide scrollbar
@@ -589,12 +680,9 @@ class ConfigApp(tk.Tk):
         # ── Title bar ──────────────────────────────────────────────────
         title_bar = tk.Frame(self, bg=self.ACCENT)
         title_bar.pack(fill="x")
-        tk.Label(title_bar, text="  👁  EyeGuard Configurator",
+        tk.Label(title_bar, text="  EyeGuard Configurator",
                  font=("Segoe UI Semibold", 14), fg="white",
                  bg=self.ACCENT, pady=12).pack(side="left")
-        tk.Label(title_bar, text="config.json · " + SCRIPT_DIR,
-                 font=("Segoe UI", 9), fg="#cce0ff",
-                 bg=self.ACCENT, pady=12).pack(side="right", padx=14)
 
         # ── Main columns ───────────────────────────────────────────────
         body = tk.Frame(self, bg=self.BG)
@@ -648,16 +736,6 @@ class ConfigApp(tk.Tk):
 
         # Reference used by _rebuild_timer_milestone_rows
         self._timer_pane = self._timer_canvas_frame
-
-        # ── Test Mode (first item) ──
-        self.var_test    = tk.BooleanVar()
-        self._test_mode_row = tk.Frame(self._timer_canvas_frame, bg=self.PANEL)
-        self._test_mode_row.pack(fill="x", pady=4)
-        tk.Label(self._test_mode_row, text="Test Mode (5 s)", font=self.FONT_MAIN,
-                 bg=self.PANEL, fg=self.FG, width=18, anchor="w").pack(side="left")
-        tk.Checkbutton(self._test_mode_row, variable=self.var_test,
-                       bg=self.PANEL, activebackground=self.PANEL,
-                       relief="flat").pack(side="left")
 
         # ── Work Time ──
         self.var_work_min = tk.StringVar()
@@ -734,23 +812,32 @@ class ConfigApp(tk.Tk):
                  font=("Segoe UI", 8), bg=self.PANEL,
                  fg=self.FG_LIGHT).pack(anchor="w", padx=(140, 0))
 
-        # ── Available Assets ──────────────────────────────────────────
-        card3, pane3 = self._card(left, title="📁  Available Assets")
+        # ── Advanced Features ─────────────────────────────────────────
+        card3, pane3 = self._card(left, title="⚙️  Advanced Features")
         card3.pack(fill="x")
 
-        self._asset_figures_lbl = tk.Label(pane3, font=self.FONT_MAIN,
-                                           bg=self.PANEL, fg=self.FG_LIGHT,
-                                           justify="left", wraplength=320)
-        self._asset_figures_lbl.pack(anchor="w")
-        self._asset_sounds_lbl = tk.Label(pane3, font=self.FONT_MAIN,
-                                          bg=self.PANEL, fg=self.FG_LIGHT,
-                                          justify="left", wraplength=320)
-        self._asset_sounds_lbl.pack(anchor="w", pady=(4, 0))
-        tk.Label(pane3,
-                 text="Place new images in assets/media/figures\n"
-                      "Place new sounds in assets/media/sounds",
+        # Test Mode toggle row
+        tm_row = tk.Frame(pane3, bg=self.PANEL)
+        tm_row.pack(fill="x", pady=(0, 8))
+        tk.Label(tm_row, text="Test Mode (5 s)",
+                 font=self.FONT_MAIN, bg=self.PANEL, fg=self.FG,
+                 width=18, anchor="w").pack(side="left")
+        ToggleSwitch(tm_row, variable=self.var_test,
+                     bg=self.PANEL).pack(side="left")
+        tk.Label(tm_row,
+                 text="  All intervals → 5 s",
                  font=("Segoe UI", 8), bg=self.PANEL,
-                 fg="#999999").pack(anchor="w", pady=(6, 0))
+                 fg=self.FG_LIGHT).pack(side="left")
+
+        # Separator
+        tk.Frame(pane3, height=1, bg=self.BORDER).pack(fill="x", pady=(0, 8))
+
+        bs_adv = dict(font=("Segoe UI Semibold", 10), relief="flat",
+                      cursor="hand2", padx=16, pady=7, bd=0)
+        tk.Button(pane3, text="↺  Reset to Defaults",
+                  bg="#eeeeee", fg=self.FG,
+                  activebackground="#dddddd",
+                  command=self._reset, **bs_adv).pack(anchor="w")
 
         # ══════════════════════════════════════════════════════════════
         # RIGHT COLUMN — scrollable popup events
@@ -812,10 +899,6 @@ class ConfigApp(tk.Tk):
         bs = dict(font=("Segoe UI Semibold", 10), relief="flat",
                   cursor="hand2", padx=20, pady=8, bd=0)
 
-        tk.Button(btn_bar, text="↺  Reset to Defaults",
-                  bg="#eeeeee", fg=self.FG,
-                  command=self._reset, **bs).pack(side="left")
-
         tk.Button(btn_bar, text="✔  Save Configuration",
                   bg=self.ACCENT, fg="white",
                   activebackground="#1558b0", activeforeground="white",
@@ -836,13 +919,6 @@ class ConfigApp(tk.Tk):
         self.var_test.set(self.cfg.get("test_mode", False))
         self.var_font.set(self.cfg.get("font_name", "Montserrat"))
         self.var_color.set(self.cfg.get("message_color", "#222222"))
-
-        figs = list_figures()
-        snds = list_sounds()
-        self._asset_figures_lbl.config(
-            text="Images: " + (", ".join(figs) if figs else "none found"))
-        self._asset_sounds_lbl.config(
-            text="Sounds: " + (", ".join(snds) if snds else "none found"))
 
         for trigger, widgets in self._popup_frames.items():
             popup = get_popup(self.cfg, trigger)
