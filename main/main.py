@@ -20,11 +20,11 @@ else:
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "config.json")
 
 DEFAULT_CONFIG = {
-    "work_time": 25,
-    "break_time": 3,
-    "free_time": 2,
-    "test_mode": False,
-    "font_name": "Montserrat",
+    "work_time_min":   25,
+    "work_time_sec":    0,
+    "popup_opacity":  100,
+    "test_mode":    False,
+    "font_name":    "Montserrat",
     "message_color": "#222222",
     "popups": [
         {
@@ -46,14 +46,18 @@ DEFAULT_CONFIG = {
             "message": "Eye break's over. Enjoy 4½ minutes just for you!",
             "image": "3.png",
             "sound": "sound.mp3",
-            "sound_repeat": 1
+            "sound_repeat": 1,
+            "duration_min": 0,
+            "duration_sec": 30
         },
         {
-            "trigger": "free_end",
+            "trigger": "break_end",
             "message": "Great! Let's get back to it, refreshed and focused!",
             "image": "4.png",
             "sound": "sound.mp3",
-            "sound_repeat": 2
+            "sound_repeat": 2,
+            "duration_min": 4,
+            "duration_sec": 30
         }
     ]
 }
@@ -63,7 +67,6 @@ def load_config():
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 user_cfg = json.load(f)
-            # Merge with defaults so missing keys always have a fallback
             cfg = DEFAULT_CONFIG.copy()
             cfg.update(user_cfg)
             return cfg
@@ -74,29 +77,44 @@ def load_config():
 CONFIG = load_config()
 
 # ====================== CONFIGURATION ======================
-MESSAGE_COLOR = CONFIG.get("message_color", "#222222")
-FONT_NAME     = CONFIG.get("font_name", "Montserrat")
+MESSAGE_COLOR  = CONFIG.get("message_color", "#222222")
+FONT_NAME      = CONFIG.get("font_name", "Montserrat")
 
-ICON_PATH     = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.png")
-FIGURES_DIR   = os.path.join(BASE_DIR, "assets", "media", "figures")
-SOUNDS_DIR    = os.path.join(BASE_DIR, "assets", "media", "sounds")
+# Popup opacity: value 10–100 (%) → alpha 0.10–1.00
+_opacity_pct   = CONFIG.get("popup_opacity", 100)
+POPUP_ALPHA    = max(0.10, min(1.0, _opacity_pct / 100.0))
+
+ICON_PATH      = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.png")
+FIGURES_DIR    = os.path.join(BASE_DIR, "assets", "media", "figures")
+SOUNDS_DIR     = os.path.join(BASE_DIR, "assets", "media", "sounds")
 
 TEST_MODE = CONFIG.get("test_mode", False)
 
 if TEST_MODE:
     WORK_TIME  = 5
-    BREAK_TIME = 5
-    FREE_TIME  = 5
 else:
-    WORK_TIME  = CONFIG.get("work_time",  25) * 60
-    BREAK_TIME = CONFIG.get("break_time",  3) * 60
-    FREE_TIME  = CONFIG.get("free_time",   2) * 60
+    WORK_TIME  = (CONFIG.get("work_time_min", 25) * 60
+                  + CONFIG.get("work_time_sec", 0))
 
-TOTAL_CYCLE = WORK_TIME + BREAK_TIME + FREE_TIME
+# Build the ordered list of break milestones from config
+# Each break_end popup carries its own duration_min / duration_sec
+BREAK_MILESTONES = [
+    p for p in CONFIG.get("popups", [])
+    if p.get("trigger") == "break_end"
+]
+
+# Total break time = sum of all milestone durations
+BREAK_TIME = sum(
+    p.get("duration_min", 0) * 60 + p.get("duration_sec", 0)
+    for p in BREAK_MILESTONES
+) if BREAK_MILESTONES else 0
+
+TOTAL_CYCLE = WORK_TIME + BREAK_TIME
 
 POPUPS = CONFIG.get("popups", DEFAULT_CONFIG["popups"])
 
 def get_popup_by_trigger(trigger):
+    """Return first popup matching trigger (used for start / work_end)."""
     for p in POPUPS:
         if p.get("trigger") == trigger:
             return p
@@ -117,17 +135,19 @@ def play_sound_async(sound_filename, repeat=1):
     threading.Thread(target=_play, daemon=True).start()
 
 popup_queue = Queue()
-FADE_DURATION = 1000
 DISPLAY_TIME  = 3000
 
-def fade_in(popup, step=0.0):
-    if step <= 1.0:
+def fade_in(popup, target_alpha, step=0.0):
+    """Fade in up to target_alpha (respects POPUP_ALPHA setting)."""
+    if step <= target_alpha:
         popup.attributes("-alpha", step)
-        popup.after(20, lambda: fade_in(popup, step + 0.05))
+        popup.after(20, lambda: fade_in(popup, target_alpha, step + 0.05))
     else:
-        popup.attributes("-alpha", 1.0)
+        popup.attributes("-alpha", target_alpha)
 
-def fade_out(popup, step=1.0):
+def fade_out(popup, step=None):
+    if step is None:
+        step = POPUP_ALPHA
     if step >= 0.0:
         popup.attributes("-alpha", step)
         popup.after(20, lambda: fade_out(popup, step - 0.05))
@@ -192,8 +212,9 @@ def create_popup(root, message, image_path):
              font=(FONT_NAME, 8), bg="white", fg="#555555"
              ).pack(side="bottom", pady=(5, 0))
 
-    fade_in(popup)
-    popup.after(DISPLAY_TIME + 1000, lambda: fade_out(popup))
+    # Fade in to the configured opacity level, then fade out after display time
+    fade_in(popup, POPUP_ALPHA)
+    popup.after(DISPLAY_TIME + 1000, lambda: fade_out(popup, POPUP_ALPHA))
 
 def show_popup(message, image_filename):
     image_path = os.path.join(FIGURES_DIR, image_filename) if image_filename else None
@@ -211,16 +232,23 @@ def check_popup_queue(root):
 def format_time_from_timestamp(timestamp):
     return time.strftime('%H:%M:%S', time.localtime(timestamp)) + f".{int(timestamp % 1 * 1000):03d}"
 
-def fire_popup(trigger):
-    popup = get_popup_by_trigger(trigger)
-    if popup:
-        show_popup(popup.get("message", ""), popup.get("image", ""))
-        play_sound_async(popup.get("sound", "sound.mp3"), popup.get("sound_repeat", 1))
+def fire_popup(trigger=None, popup_data=None):
+    """Fire a popup either by trigger name or by passing a popup dict directly."""
+    if popup_data is None and trigger is not None:
+        popup_data = get_popup_by_trigger(trigger)
+    if popup_data:
+        show_popup(popup_data.get("message", ""), popup_data.get("image", ""))
+        play_sound_async(
+            popup_data.get("sound", "sound.mp3"),
+            popup_data.get("sound_repeat", 1)
+        )
 
 def timer_thread():
     mode = "TEST" if TEST_MODE else "PRODUCTION"
     print(f"=== EyeGuard Starting in {mode} MODE ===")
-    print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s | Free: {FREE_TIME}s | Total: {TOTAL_CYCLE}s")
+    print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s ({len(BREAK_MILESTONES)} milestones) "
+          f"| Total: {TOTAL_CYCLE}s")
+    print(f"Popup opacity: {_opacity_pct}%")
     print("=" * 60)
 
     fire_popup("start")
@@ -230,23 +258,25 @@ def timer_thread():
         cycle_start = time.time()
         print(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(cycle_start)}")
 
+        # ── Work phase ──
         target = cycle_start + WORK_TIME
         time.sleep(max(0, target - time.time()))
         now = time.time()
-        print(f"[WORK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
+        print(f"[WORK END] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
         fire_popup("work_end")
 
-        target = cycle_start + WORK_TIME + BREAK_TIME
-        time.sleep(max(0, target - time.time()))
-        now = time.time()
-        print(f"[BREAK END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
-        fire_popup("break_end")
-
-        target = cycle_start + WORK_TIME + BREAK_TIME + FREE_TIME
-        time.sleep(max(0, target - time.time()))
-        now = time.time()
-        print(f"[FREE END / BEEP] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
-        fire_popup("free_end")
+        # ── Break phase — iterate through milestones in order ──
+        milestone_start = time.time()
+        for idx, milestone in enumerate(BREAK_MILESTONES):
+            dur = (milestone.get("duration_min", 0) * 60
+                   + milestone.get("duration_sec", 0))
+            target = milestone_start + dur
+            time.sleep(max(0, target - time.time()))
+            milestone_start = time.time()   # next milestone starts from here
+            now = time.time()
+            print(f"[MILESTONE {idx + 1} END] {format_time_from_timestamp(now)} "
+                  f"| +{now - cycle_start:.3f}s")
+            fire_popup(popup_data=milestone)
 
         cycle_end = time.time()
         actual    = cycle_end - cycle_start

@@ -373,12 +373,15 @@ class ConfigApp(tk.Tk):
         self._build_ui()
         self._populate()
 
-        # Set window to full screen height, centred horizontally
+        # Set window to ~88% of screen height, centred on screen
         self.update_idletasks()
+        screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
         win_w    = self.winfo_reqwidth()
-        x        = (self.winfo_screenwidth() - win_w) // 2
-        self.geometry(f"{win_w}x{screen_h}+{x}+0")
+        win_h    = int(screen_h * 0.88)
+        x        = (screen_w - win_w) // 2
+        y        = (screen_h - win_h) // 2
+        self.geometry(f"{win_w}x{win_h}+{x}+{y}")
 
     # ------------------------------------------------------------------
     # UI BUILD HELPERS
@@ -512,6 +515,26 @@ class ConfigApp(tk.Tk):
         self._var_total_break.set(fmt_duration(break_s) if break_s else "0s")
         self._var_total_cycle.set(fmt_duration(work_s + break_s) if (work_s + break_s) else "0s")
 
+    def _maybe_enable_timer_scroll(self):
+        """Show/hide the timer scrollbar only when content overflows the canvas."""
+        self._timer_canvas.update_idletasks()
+        content_h = self._timer_canvas_frame.winfo_reqheight()
+        canvas_h  = self._timer_canvas.winfo_height()
+        if content_h > canvas_h:
+            # Content overflows — show scrollbar and enable mousewheel
+            if not self._timer_vsb.winfo_ismapped():
+                self._timer_vsb.pack(side="right", fill="y",
+                                     before=self._timer_canvas)
+            self._timer_canvas.bind_all(
+                "<MouseWheel>",
+                lambda ev: self._timer_canvas.yview_scroll(
+                    int(-1 * (ev.delta / 120)), "units"))
+        else:
+            # Content fits — hide scrollbar, disable mousewheel on this canvas
+            if self._timer_vsb.winfo_ismapped():
+                self._timer_vsb.pack_forget()
+            self._timer_canvas.unbind_all("<MouseWheel>")
+
     def _rebuild_timer_milestone_rows(self):
         """Sync milestone duration rows in Timer Settings with current entries."""
         entries = self._milestone_manager.entries
@@ -549,10 +572,11 @@ class ConfigApp(tk.Tk):
         self._test_mode_row.pack(fill="x", pady=4)
 
         self._update_totals()
-        # Update timer canvas scroll region
+        # Update scroll region and conditionally show/hide scrollbar
         self._timer_canvas_frame.update_idletasks()
         self._timer_canvas.configure(
             scrollregion=self._timer_canvas.bbox("all"))
+        self._maybe_enable_timer_scroll()
 
     # ------------------------------------------------------------------
     # MAIN UI
@@ -595,41 +619,35 @@ class ConfigApp(tk.Tk):
                  font=self.FONT_HEAD, bg=self.PANEL,
                  fg=self.FG).pack(anchor="w", pady=(0, 6))
 
-        # Scrollable canvas inside the timer card
+        # Timer inner area — canvas + scrollbar, scroll only when content overflows
         timer_scroll_frame = tk.Frame(timer_card_inner, bg=self.PANEL)
         timer_scroll_frame.pack(fill="both", expand=True)
 
+        self._timer_vsb    = ttk.Scrollbar(timer_scroll_frame, orient="vertical")
         self._timer_canvas = tk.Canvas(timer_scroll_frame, bg=self.PANEL,
-                                       highlightthickness=0)
-        timer_vsb = ttk.Scrollbar(timer_scroll_frame, orient="vertical",
-                                   command=self._timer_canvas.yview)
-        self._timer_canvas.configure(yscrollcommand=timer_vsb.set)
-        timer_vsb.pack(side="right", fill="y")
+                                       highlightthickness=0,
+                                       yscrollcommand=self._timer_vsb.set)
+        self._timer_vsb.configure(command=self._timer_canvas.yview)
+        # Scrollbar starts hidden; shown by _maybe_enable_timer_scroll when needed
         self._timer_canvas.pack(side="left", fill="both", expand=True)
 
         self._timer_canvas_frame = tk.Frame(self._timer_canvas, bg=self.PANEL)
         tc_win = self._timer_canvas.create_window(
             (0, 0), window=self._timer_canvas_frame, anchor="nw")
 
-        self._timer_canvas_frame.bind(
-            "<Configure>",
-            lambda e: self._timer_canvas.configure(
-                scrollregion=self._timer_canvas.bbox("all")))
-        self._timer_canvas.bind(
-            "<Configure>",
-            lambda e: self._timer_canvas.itemconfig(tc_win, width=e.width))
-        self._timer_canvas.bind(
-            "<Enter>",
-            lambda e: self._timer_canvas.bind_all(
-                "<MouseWheel>",
-                lambda ev: self._timer_canvas.yview_scroll(
-                    int(-1 * (ev.delta / 120)), "units")))
-        self._timer_canvas.bind(
-            "<Leave>",
-            lambda e: self._timer_canvas.unbind_all("<MouseWheel>"))
+        def _on_timer_frame_configure(e):
+            self._timer_canvas.configure(
+                scrollregion=self._timer_canvas.bbox("all"))
+            self._maybe_enable_timer_scroll()
 
-        # Reference to the scrollable frame used by _rebuild_timer_milestone_rows
-        self._timer_pane = self._timer_canvas_frame   # kept for compat
+        self._timer_canvas_frame.bind("<Configure>", _on_timer_frame_configure)
+        self._timer_canvas.bind(
+            "<Configure>",
+            lambda e: (self._timer_canvas.itemconfig(tc_win, width=e.width),
+                       self._maybe_enable_timer_scroll()))
+
+        # Reference used by _rebuild_timer_milestone_rows
+        self._timer_pane = self._timer_canvas_frame
 
         # ── Test Mode (first item) ──
         self.var_test    = tk.BooleanVar()
