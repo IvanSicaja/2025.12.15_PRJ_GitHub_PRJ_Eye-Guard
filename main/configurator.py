@@ -706,10 +706,10 @@ class ConfigApp(tk.Tk):
         self.var_color   = tk.StringVar()
         self.var_opacity = tk.IntVar(value=100)
 
-        # Popup Opacity — spinbox + slider sharing the same IntVar
+        # Popup Opacity — label | spinbox | % | slider  — all on one row
         op_row = tk.Frame(pane2, bg=self.PANEL)
         op_row.pack(fill="x", pady=4)
-        tk.Label(op_row, text="Popup Opacity %", font=self.FONT_MAIN,
+        tk.Label(op_row, text="Popup Opacity", font=self.FONT_MAIN,
                  bg=self.PANEL, fg=self.FG,
                  width=18, anchor="w").pack(side="left")
         tk.Spinbox(op_row, from_=10, to=100, width=5,
@@ -718,16 +718,11 @@ class ConfigApp(tk.Tk):
                    highlightthickness=0).pack(side="left")
         tk.Label(op_row, text=" %", font=self.FONT_MAIN,
                  bg=self.PANEL, fg="#444444").pack(side="left")
-
-        op_slider_row = tk.Frame(pane2, bg=self.PANEL)
-        op_slider_row.pack(fill="x", pady=(0, 4))
-        tk.Label(op_slider_row, text="", width=18,
-                 bg=self.PANEL).pack(side="left")   # alignment spacer
-        ttk.Scale(op_slider_row, from_=10, to=100,
-                  orient="horizontal", length=180,
+        ttk.Scale(op_row, from_=10, to=100,
+                  orient="horizontal", length=160,
                   variable=self.var_opacity,
                   command=lambda v: self.var_opacity.set(int(float(v)))
-                  ).pack(side="left")
+                  ).pack(side="left", padx=(10, 0))
 
         tk.Frame(pane2, height=1, bg=self.BORDER).pack(fill="x", pady=(4, 8))
 

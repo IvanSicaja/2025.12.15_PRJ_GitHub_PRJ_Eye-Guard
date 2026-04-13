@@ -35,7 +35,7 @@
       "image": "4.png",
       "sound": "sound.mp3",
       "sound_repeat": 2,
-      "duration_min": 2,
+      "duration_min": 4,
       "duration_sec": 0
     }
   ]

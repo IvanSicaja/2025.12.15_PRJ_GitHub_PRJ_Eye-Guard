@@ -88,13 +88,14 @@ ICON_PATH      = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.png")
 FIGURES_DIR    = os.path.join(BASE_DIR, "assets", "media", "figures")
 SOUNDS_DIR     = os.path.join(BASE_DIR, "assets", "media", "sounds")
 
-TEST_MODE = CONFIG.get("test_mode", False)
+TEST_MODE      = CONFIG.get("test_mode", False)
+TEST_INTERVAL  = 5   # seconds per interval in test mode
 
 if TEST_MODE:
-    WORK_TIME  = 5
+    WORK_TIME = TEST_INTERVAL
 else:
-    WORK_TIME  = (CONFIG.get("work_time_min", 25) * 60
-                  + CONFIG.get("work_time_sec", 0))
+    WORK_TIME = (CONFIG.get("work_time_min", 25) * 60
+                 + CONFIG.get("work_time_sec", 0))
 
 # Build the ordered list of break milestones from config
 # Each break_end popup carries its own duration_min / duration_sec
@@ -103,12 +104,16 @@ BREAK_MILESTONES = [
     if p.get("trigger") == "break_end"
 ]
 
-# Total break time = sum of all milestone durations
-BREAK_TIME = sum(
-    p.get("duration_min", 0) * 60 + p.get("duration_sec", 0)
-    for p in BREAK_MILESTONES
-) if BREAK_MILESTONES else 0
+# In test mode every milestone is exactly TEST_INTERVAL seconds
+if TEST_MODE:
+    MILESTONE_DURATIONS = [TEST_INTERVAL] * len(BREAK_MILESTONES)
+else:
+    MILESTONE_DURATIONS = [
+        p.get("duration_min", 0) * 60 + p.get("duration_sec", 0)
+        for p in BREAK_MILESTONES
+    ]
 
+BREAK_TIME  = sum(MILESTONE_DURATIONS)
 TOTAL_CYCLE = WORK_TIME + BREAK_TIME
 
 POPUPS = CONFIG.get("popups", DEFAULT_CONFIG["popups"])
@@ -246,8 +251,16 @@ def fire_popup(trigger=None, popup_data=None):
 def timer_thread():
     mode = "TEST" if TEST_MODE else "PRODUCTION"
     print(f"=== EyeGuard Starting in {mode} MODE ===")
-    print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s ({len(BREAK_MILESTONES)} milestones) "
-          f"| Total: {TOTAL_CYCLE}s")
+    if TEST_MODE:
+        print(f"[TEST] Every interval fixed at exactly {TEST_INTERVAL}s")
+        print(f"[TEST] Work: {WORK_TIME}s | "
+              f"Milestones: {len(BREAK_MILESTONES)} × {TEST_INTERVAL}s each | "
+              f"Break total: {BREAK_TIME}s | Cycle total: {TOTAL_CYCLE}s")
+    else:
+        durations_str = " + ".join(f"{d}s" for d in MILESTONE_DURATIONS)
+        print(f"Work: {WORK_TIME}s | Break: {BREAK_TIME}s "
+              f"({len(BREAK_MILESTONES)} milestones: {durations_str}) | "
+              f"Total: {TOTAL_CYCLE}s")
     print(f"Popup opacity: {_opacity_pct}%")
     print("=" * 60)
 
@@ -255,36 +268,46 @@ def timer_thread():
 
     cycle_number = 1
     while True:
-        cycle_start = time.time()
-        print(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(cycle_start)}")
+        cycle_start = time.perf_counter()   # high-resolution monotonic clock
+        wall_start  = time.time()
+        print(f"\n[CYCLE {cycle_number} START] {format_time_from_timestamp(wall_start)}")
 
-        # ── Work phase ──
-        target = cycle_start + WORK_TIME
-        time.sleep(max(0, target - time.time()))
-        now = time.time()
-        print(f"[WORK END] {format_time_from_timestamp(now)} | +{now - cycle_start:.3f}s")
+        # ── Work phase — target is absolute offset from cycle_start ──
+        work_target = cycle_start + WORK_TIME
+        sleep_dur   = work_target - time.perf_counter()
+        if sleep_dur > 0:
+            time.sleep(sleep_dur)
+        elapsed = time.perf_counter() - cycle_start
+        drift   = elapsed - WORK_TIME
+        print(f"[WORK END]  {format_time_from_timestamp(time.time())} | "
+              f"expected +{WORK_TIME:.3f}s | actual +{elapsed:.3f}s | "
+              f"drift {drift:+.6f}s")
         fire_popup("work_end")
 
-        # ── Break phase — iterate through milestones in order ──
-        milestone_start = time.time()
-        for idx, milestone in enumerate(BREAK_MILESTONES):
-            dur = (milestone.get("duration_min", 0) * 60
-                   + milestone.get("duration_sec", 0))
-            target = milestone_start + dur
-            time.sleep(max(0, target - time.time()))
-            milestone_start = time.time()   # next milestone starts from here
-            now = time.time()
-            print(f"[MILESTONE {idx + 1} END] {format_time_from_timestamp(now)} "
-                  f"| +{now - cycle_start:.3f}s")
+        # ── Break phase — each milestone target is absolute from cycle_start ──
+        # Accumulated offset starts right after work phase
+        accum = WORK_TIME
+        for idx, (milestone, dur) in enumerate(
+                zip(BREAK_MILESTONES, MILESTONE_DURATIONS)):
+            accum        += dur
+            ms_target     = cycle_start + accum
+            sleep_dur     = ms_target - time.perf_counter()
+            if sleep_dur > 0:
+                time.sleep(sleep_dur)
+            elapsed = time.perf_counter() - cycle_start
+            drift   = elapsed - accum
+            print(f"[MILESTONE {idx + 1} END]  "
+                  f"{format_time_from_timestamp(time.time())} | "
+                  f"expected +{accum:.3f}s | actual +{elapsed:.3f}s | "
+                  f"drift {drift:+.6f}s")
             fire_popup(popup_data=milestone)
 
-        cycle_end = time.time()
-        actual    = cycle_end - cycle_start
-        drift     = actual - TOTAL_CYCLE
-        print(
-            f"[CYCLE {cycle_number} END] {format_time_from_timestamp(cycle_end)} | "
-            f"Expected: {TOTAL_CYCLE:.3f}s | Actual: {actual:.3f}s | Drift: {drift:+.3f}s"
-        )
+        cycle_elapsed = time.perf_counter() - cycle_start
+        cycle_drift   = cycle_elapsed - TOTAL_CYCLE
+        print(f"[CYCLE {cycle_number} END]  "
+              f"{format_time_from_timestamp(time.time())} | "
+              f"expected {TOTAL_CYCLE:.3f}s | actual {cycle_elapsed:.3f}s | "
+              f"total drift {cycle_drift:+.6f}s")
         cycle_number += 1
 
 def main():
