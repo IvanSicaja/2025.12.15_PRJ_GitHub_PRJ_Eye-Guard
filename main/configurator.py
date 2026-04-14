@@ -8,9 +8,30 @@ It reads and writes config.json in that same folder.
 import json
 import os
 import sys
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
+
+# ── Sound preview (pygame) ──────────────────────────────────────────
+try:
+    import pygame
+    pygame.mixer.init()
+    _PYGAME_OK = True
+except Exception:
+    _PYGAME_OK = False
+
+def preview_sound(sound_path):
+    """Play a sound file for preview. Non-blocking. Silently ignored if pygame unavailable."""
+    if not _PYGAME_OK or not sound_path or not os.path.exists(sound_path):
+        return
+    def _play():
+        try:
+            pygame.mixer.music.load(sound_path)
+            pygame.mixer.music.play()
+        except Exception:
+            pass
+    threading.Thread(target=_play, daemon=True).start()
 
 # ====================== PATHS ======================
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -95,6 +116,7 @@ def list_figures():
                   if os.path.splitext(f)[1].lower() in ALLOWED_IMAGE_EXTS)
 
 def list_sounds():
+    """Return all .mp3 files in SOUNDS_DIR, sorted alphabetically."""
     if not os.path.isdir(SOUNDS_DIR):
         return []
     return sorted(f for f in os.listdir(SOUNDS_DIR)
@@ -131,6 +153,40 @@ def _make_min_sec_widgets(parent, var_min, var_sec, bg, font,
                relief="solid", bd=1, highlightthickness=0, bg=bg
                ).pack(side="left")
     tk.Label(parent, text=" s", font=font, bg=bg, fg="#444444").pack(side="left")
+
+
+def _build_sound_row(parent, var_snd, sounds, bg, font, fg, fg_light):
+    """
+    Build a sound selection row: combobox + play button.
+    Auto-plays the sound when selection changes.
+    Returns the combobox widget.
+    """
+    cb = ttk.Combobox(parent, textvariable=var_snd, values=sounds,
+                      width=20, font=font, state="normal")
+    cb.pack(side="left")
+
+    def _play_selected(*_):
+        snd = var_snd.get().strip()
+        if snd:
+            preview_sound(os.path.join(SOUNDS_DIR, snd))
+
+    # Auto-play on combobox selection change
+    var_snd.trace_add("write", _play_selected)
+
+    # ▶ play button — lets user re-play the currently selected sound
+    play_btn = tk.Button(
+        parent,
+        text="▶",
+        font=("Segoe UI", 9),
+        bg="#e8f0fe", fg="#1a73e8",
+        activebackground="#c5d5f5", activeforeground="#1a73e8",
+        relief="flat", cursor="hand2",
+        padx=5, pady=1, bd=0,
+        command=_play_selected,
+    )
+    play_btn.pack(side="left", padx=(4, 0))
+
+    return cb
 
 
 # ====================== BREAK MILESTONE MANAGER ======================
@@ -265,12 +321,13 @@ class BreakMilestoneManager:
         u = _make_upd(prev_lbl, entry["image"])
         entry["image"].trace_add("write", u); u()
 
-        # Sound + Repeat
+        # Sound + Repeat — uses shared helper with auto-play + play button
         r_snd = tk.Frame(card, bg=self.CARD_BG); r_snd.pack(fill="x", pady=2)
         tk.Label(r_snd, text="Sound", font=self.FONT_MAIN,
                  bg=self.CARD_BG, fg=self.FG, width=18, anchor="w").pack(side="left")
-        ttk.Combobox(r_snd, textvariable=entry["sound"], values=self.sounds,
-                     width=20, font=self.FONT_MAIN, state="normal").pack(side="left")
+        _build_sound_row(r_snd, entry["sound"], self.sounds,
+                         bg=self.CARD_BG, font=self.FONT_MAIN,
+                         fg=self.FG, fg_light=self.FG_LIGHT)
         tk.Label(r_snd, text="  Repeat", font=self.FONT_MAIN,
                  bg=self.CARD_BG, fg=self.FG).pack(side="left")
         tk.Spinbox(r_snd, from_=1, to=10, width=4, textvariable=entry["sound_repeat"],
@@ -347,26 +404,24 @@ class ToggleSwitch(tk.Canvas):
     A smooth animated Android-style toggle switch.
     Shares a tk.BooleanVar with other widgets.
     """
-    W, H   = 46, 24          # overall dimensions
-    PAD    = 3                # padding around the thumb
-    ON_BG  = "#1a73e8"        # blue when ON
-    OFF_BG = "#cccccc"        # grey when OFF
+    W, H   = 46, 24
+    PAD    = 3
+    ON_BG  = "#1a73e8"
+    OFF_BG = "#cccccc"
     THUMB  = "#ffffff"
-    STEPS  = 8               # animation frames
+    STEPS  = 8
 
     def __init__(self, parent, variable, **kwargs):
         super().__init__(parent,
                          width=self.W, height=self.H,
                          highlightthickness=0,
                          bd=0, **kwargs)
-        self._var      = variable
+        self._var       = variable
         self._animating = False
 
         r = self.H / 2
-        # Track rounded rectangle (two arcs + rectangle)
         self._track = self.create_rounded_rect(0, 0, self.W, self.H, r,
                                                fill=self.OFF_BG, outline="")
-        # Thumb circle
         ty = self.PAD
         tx = self.PAD
         self._thumb = self.create_oval(tx, ty,
@@ -379,18 +434,9 @@ class ToggleSwitch(tk.Canvas):
         self._apply_state(animate=False)
 
     def create_rounded_rect(self, x1, y1, x2, y2, r, **kw):
-        pts = [x1+r, y1,
-               x2-r, y1,
-               x2,   y1,
-               x2,   y1+r,
-               x2,   y2-r,
-               x2,   y2,
-               x2-r, y2,
-               x1+r, y2,
-               x1,   y2,
-               x1,   y2-r,
-               x1,   y1+r,
-               x1,   y1]
+        pts = [x1+r, y1, x2-r, y1, x2, y1, x2, y1+r,
+               x2, y2-r, x2, y2, x2-r, y2, x1+r, y2,
+               x1, y2, x1, y2-r, x1, y1+r, x1, y1]
         return self.create_polygon(pts, smooth=True, **kw)
 
     def _on_click(self, _=None):
@@ -401,9 +447,8 @@ class ToggleSwitch(tk.Canvas):
 
     def _apply_state(self, animate=True):
         on = self._var.get()
-        target_x = self.W - self.H + self.PAD if on else self.PAD
+        target_x     = self.W - self.H + self.PAD if on else self.PAD
         target_color = self.ON_BG if on else self.OFF_BG
-
         if animate and not self._animating:
             self._animate_to(target_x, target_color, self.STEPS)
         else:
@@ -421,10 +466,8 @@ class ToggleSwitch(tk.Canvas):
         cur_x  = coords[0]
         new_x  = cur_x + (target_x - cur_x) / steps_left
         self._set_thumb_x(new_x)
-        # Interpolate track colour
         self.itemconfig(self._track, fill=target_color)
-        self.after(16, lambda: self._animate_to(target_x, target_color,
-                                                steps_left - 1))
+        self.after(16, lambda: self._animate_to(target_x, target_color, steps_left - 1))
 
     def _set_thumb_x(self, x):
         y = self.PAD
@@ -449,7 +492,7 @@ class ConfigApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("EyeGuard Configurator")
-        self.resizable(False, True)          # allow vertical resize / full height
+        self.resizable(False, True)
         self.configure(bg=self.BG)
 
         if os.path.exists(ICON_PATH):
@@ -460,15 +503,14 @@ class ConfigApp(tk.Tk):
             except Exception:
                 pass
 
-        self.cfg         = load_config()
-        self._timer_rows = []   # [(frame, lbl)] per milestone timer row
-        self.var_test       = tk.BooleanVar()   # declared early so Advanced Features can reference it
-        self.var_cycle_align = tk.BooleanVar()  # declared early so Advanced Features can reference it
+        self.cfg              = load_config()
+        self._timer_rows      = []
+        self.var_test         = tk.BooleanVar()
+        self.var_cycle_align  = tk.BooleanVar()
 
         self._build_ui()
         self._populate()
 
-        # Set window to ~88% of screen height, wider for readability, centred
         self.update_idletasks()
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
@@ -573,12 +615,14 @@ class ConfigApp(tk.Tk):
         upd = _make_prev(prev_lbl, var_img)
         var_img.trace_add("write", upd)
 
+        # Sound row — uses shared helper with auto-play + play button
         sr = tk.Frame(section, bg=self.PANEL); sr.pack(fill="x", pady=3)
         tk.Label(sr, text="Sound", font=self.FONT_MAIN,
                  bg=self.PANEL, fg=self.FG, width=14, anchor="w").pack(side="left")
         var_snd = tk.StringVar()
-        ttk.Combobox(sr, textvariable=var_snd, values=sounds, width=20,
-                     font=self.FONT_MAIN, state="normal").pack(side="left")
+        _build_sound_row(sr, var_snd, sounds,
+                         bg=self.PANEL, font=self.FONT_MAIN,
+                         fg=self.FG, fg_light=self.FG_LIGHT)
         tk.Label(sr, text="  Repeat", font=self.FONT_MAIN,
                  bg=self.PANEL, fg=self.FG).pack(side="left")
         var_rep = tk.StringVar()
@@ -594,7 +638,6 @@ class ConfigApp(tk.Tk):
     # ------------------------------------------------------------------
 
     def _update_totals(self, *_):
-        """Recalculate and redisplay Total Break Time and Total Cycle Time."""
         try:
             work_s = int(self.var_work_min.get()) * 60 + int(self.var_work_sec.get())
         except ValueError:
@@ -611,12 +654,10 @@ class ConfigApp(tk.Tk):
         self._var_total_cycle.set(fmt_duration(work_s + break_s) if (work_s + break_s) else "0s")
 
     def _maybe_enable_timer_scroll(self):
-        """Show/hide the timer scrollbar only when content overflows the canvas."""
         self._timer_canvas.update_idletasks()
         content_h = self._timer_canvas_frame.winfo_reqheight()
         canvas_h  = self._timer_canvas.winfo_height()
         if content_h > canvas_h:
-            # Content overflows — show scrollbar and enable mousewheel
             if not self._timer_vsb.winfo_ismapped():
                 self._timer_vsb.pack(side="right", fill="y",
                                      before=self._timer_canvas)
@@ -625,25 +666,20 @@ class ConfigApp(tk.Tk):
                 lambda ev: self._timer_canvas.yview_scroll(
                     int(-1 * (ev.delta / 120)), "units"))
         else:
-            # Content fits — hide scrollbar, disable mousewheel on this canvas
             if self._timer_vsb.winfo_ismapped():
                 self._timer_vsb.pack_forget()
             self._timer_canvas.unbind_all("<MouseWheel>")
 
     def _rebuild_timer_milestone_rows(self):
-        """Sync milestone duration rows in Timer Settings with current entries."""
         entries = self._milestone_manager.entries
 
-        # Detach totals rows temporarily
         self._total_break_row.pack_forget()
         self._total_cycle_row.pack_forget()
 
-        # Remove old milestone rows
         for frame, _ in self._timer_rows:
             frame.destroy()
         self._timer_rows.clear()
 
-        # Rebuild milestone rows (they go after Work Time row)
         for i, entry in enumerate(entries):
             row = tk.Frame(self._timer_canvas_frame, bg=self.PANEL)
             row.pack(fill="x", pady=4)
@@ -655,17 +691,14 @@ class ConfigApp(tk.Tk):
                                   entry["duration_min"], entry["duration_sec"],
                                   bg=self.PANEL, font=self.FONT_MAIN,
                                   min_max=999, sec_max=59)
-            # Attach traces so totals update live
             entry["duration_min"].trace_add("write", self._update_totals)
             entry["duration_sec"].trace_add("write", self._update_totals)
             self._timer_rows.append((row, lbl))
 
-        # Re-pack Total Break, Total Cycle at the bottom
         self._total_break_row.pack(fill="x", pady=4)
         self._total_cycle_row.pack(fill="x", pady=4)
 
         self._update_totals()
-        # Update scroll region and conditionally show/hide scrollbar
         self._timer_canvas_frame.update_idletasks()
         self._timer_canvas.configure(
             scrollregion=self._timer_canvas.bbox("all"))
@@ -699,7 +732,7 @@ class ConfigApp(tk.Tk):
         # LEFT COLUMN
         # ══════════════════════════════════════════════════════════════
 
-        # ── Timer Settings card (scrollable inner area) ────────────────
+        # ── Timer Settings card ────────────────────────────────────────
         timer_card_outer = tk.Frame(left, bg=self.BORDER, bd=0)
         timer_card_outer.pack(fill="both", expand=True, pady=(0, 10))
         timer_card_inner = tk.Frame(timer_card_outer, bg=self.PANEL, padx=16, pady=14)
@@ -709,7 +742,6 @@ class ConfigApp(tk.Tk):
                  font=self.FONT_HEAD, bg=self.PANEL,
                  fg=self.FG).pack(anchor="w", pady=(0, 6))
 
-        # Timer inner area — canvas + scrollbar, scroll only when content overflows
         timer_scroll_frame = tk.Frame(timer_card_inner, bg=self.PANEL)
         timer_scroll_frame.pack(fill="both", expand=True)
 
@@ -718,7 +750,6 @@ class ConfigApp(tk.Tk):
                                        highlightthickness=0,
                                        yscrollcommand=self._timer_vsb.set)
         self._timer_vsb.configure(command=self._timer_canvas.yview)
-        # Scrollbar starts hidden; shown by _maybe_enable_timer_scroll when needed
         self._timer_canvas.pack(side="left", fill="both", expand=True)
 
         self._timer_canvas_frame = tk.Frame(self._timer_canvas, bg=self.PANEL)
@@ -736,10 +767,9 @@ class ConfigApp(tk.Tk):
             lambda e: (self._timer_canvas.itemconfig(tc_win, width=e.width),
                        self._maybe_enable_timer_scroll()))
 
-        # Reference used by _rebuild_timer_milestone_rows
         self._timer_pane = self._timer_canvas_frame
 
-        # ── Work Time ──
+        # Work Time
         self.var_work_min = tk.StringVar()
         self.var_work_sec = tk.StringVar()
         wt_row = tk.Frame(self._timer_canvas_frame, bg=self.PANEL)
@@ -752,10 +782,9 @@ class ConfigApp(tk.Tk):
         self.var_work_min.trace_add("write", self._update_totals)
         self.var_work_sec.trace_add("write", self._update_totals)
 
-        # ── Total Break Time (read-only, shown below milestone rows) ──
+        # Total Break Time (read-only)
         self._var_total_break = tk.StringVar(value="—")
         self._total_break_row = tk.Frame(self._timer_canvas_frame, bg=self.PANEL)
-        # packed later by _rebuild_timer_milestone_rows
         tk.Label(self._total_break_row, text="Total Break Time",
                  font=self.FONT_MAIN, bg=self.PANEL, fg=self.FG_LIGHT,
                  width=18, anchor="w").pack(side="left")
@@ -765,10 +794,9 @@ class ConfigApp(tk.Tk):
                  state="readonly", readonlybackground=self.READONLY,
                  highlightthickness=0).pack(side="left")
 
-        # ── Total Cycle Time (read-only) ──
+        # Total Cycle Time (read-only)
         self._var_total_cycle = tk.StringVar(value="—")
         self._total_cycle_row = tk.Frame(self._timer_canvas_frame, bg=self.PANEL)
-        # packed later by _rebuild_timer_milestone_rows
         tk.Label(self._total_cycle_row, text="Total Cycle Time",
                  font=("Segoe UI Semibold", 10), bg=self.PANEL, fg=self.ACCENT,
                  width=18, anchor="w").pack(side="left")
@@ -786,7 +814,6 @@ class ConfigApp(tk.Tk):
         self.var_color   = tk.StringVar()
         self.var_opacity = tk.IntVar(value=100)
 
-        # Popup Opacity — label | spinbox | % | slider  — all on one row
         op_row = tk.Frame(pane2, bg=self.PANEL)
         op_row.pack(fill="x", pady=4)
         tk.Label(op_row, text="Popup Opacity", font=self.FONT_MAIN,
@@ -818,7 +845,6 @@ class ConfigApp(tk.Tk):
         card3, pane3 = self._card(left, title="⚙️  Advanced Features")
         card3.pack(fill="x")
 
-        # Test Mode toggle row
         tm_row = tk.Frame(pane3, bg=self.PANEL)
         tm_row.pack(fill="x", pady=(0, 8))
         tk.Label(tm_row, text="Test Mode (5 s)",
@@ -826,12 +852,10 @@ class ConfigApp(tk.Tk):
                  width=18, anchor="w").pack(side="left")
         ToggleSwitch(tm_row, variable=self.var_test,
                      bg=self.PANEL).pack(side="left")
-        tk.Label(tm_row,
-                 text="  All intervals → 5 s",
+        tk.Label(tm_row, text="  All intervals → 5 s",
                  font=("Segoe UI", 8), bg=self.PANEL,
                  fg=self.FG_LIGHT).pack(side="left")
 
-        # Cycle Alignment toggle
         ca_row = tk.Frame(pane3, bg=self.PANEL)
         ca_row.pack(fill="x", pady=(0, 8))
         tk.Label(ca_row, text="30-Min Alignment",
@@ -839,12 +863,10 @@ class ConfigApp(tk.Tk):
                  width=18, anchor="w").pack(side="left")
         ToggleSwitch(ca_row, variable=self.var_cycle_align,
                      bg=self.PANEL).pack(side="left")
-        tk.Label(ca_row,
-                 text="  Last milestone snaps to :00/:30 clock marks",
+        tk.Label(ca_row, text="  Last milestone snaps to :00/:30 clock marks",
                  font=("Segoe UI", 8), bg=self.PANEL,
                  fg=self.FG_LIGHT).pack(side="left")
 
-        # Separator
         tk.Frame(pane3, height=1, bg=self.BORDER).pack(fill="x", pady=(0, 8))
 
         bs_adv = dict(font=("Segoe UI Semibold", 10), relief="flat",
@@ -886,7 +908,6 @@ class ConfigApp(tk.Tk):
         canvas.bind("<Leave>",
                     lambda e: canvas.unbind_all("<MouseWheel>"))
 
-        # Fixed sections
         self._popup_frames = {}
 
         _, vars_start = self._build_fixed_popup_section(
@@ -901,7 +922,6 @@ class ConfigApp(tk.Tk):
         )
         self._popup_frames["work_end"] = vars_work
 
-        # Break Milestone Manager
         self._milestone_manager = BreakMilestoneManager(
             scroll_frame, figures=figures, sounds=sounds,
             on_entries_changed=self._rebuild_timer_milestone_rows,
@@ -948,7 +968,6 @@ class ConfigApp(tk.Tk):
             milestones = [p for p in DEFAULT_CONFIG["popups"]
                           if p["trigger"] == "break_end"]
         self._milestone_manager.load_milestones(milestones)
-        # load_milestones → on_entries_changed → _rebuild_timer_milestone_rows → _update_totals
 
     def _collect(self):
         try:

@@ -133,6 +133,10 @@ pygame.init()
 pygame.mixer.init()
 
 def play_sound_async(sound_filename, repeat=1):
+    """
+    Play any sound file from SOUNDS_DIR by filename.
+    Supports any .mp3 present in the sounds folder (sound.mp3, sound_01.mp3, etc.)
+    """
     sound_path = os.path.join(SOUNDS_DIR, sound_filename)
     def _play():
         for _ in range(repeat):
@@ -141,6 +145,8 @@ def play_sound_async(sound_filename, repeat=1):
                 pygame.mixer.music.play()
                 while pygame.mixer.music.get_busy():
                     time.sleep(0.1)
+            else:
+                print(f"[SOUND] File not found: {sound_path}")
     threading.Thread(target=_play, daemon=True).start()
 
 popup_queue = Queue()
@@ -338,12 +344,7 @@ def timer_thread():
         print(f"[ALIGN] Aligned cycle start: {fmt_wall(cycle_start_wall)}")
 
         # Build absolute wall-clock targets for every event in this first cycle
-        # working BACKWARDS from the boundary:
-        #   last_milestone  → boundary_wall
-        #   prev milestone  → boundary_wall - dur_last
-        #   ...
-        #   work_end        → boundary_wall - BREAK_TIME
-        #   cycle_start     → boundary_wall - TOTAL_CYCLE
+        # working BACKWARDS from the boundary
         milestone_fire_walls = []
         t = boundary_wall
         for dur in reversed(MILESTONE_DURATIONS):
@@ -360,7 +361,6 @@ def timer_thread():
         if work_end_wall > now_wall:
             wait = work_end_wall - now_wall
             print(f"[ALIGN] Waiting {wait:.1f}s for Work End at {fmt_wall(work_end_wall)}")
-            # Sleep in small chunks so we stay accurate
             end_pc = time.perf_counter() + wait
             while True:
                 rem = end_pc - time.perf_counter()
