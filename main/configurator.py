@@ -7,10 +7,11 @@ It reads and writes config.json in that same folder.
 
 import json
 import os
+import shutil
 import sys
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 
 # ── Sound preview (pygame) ──────────────────────────────────────────
@@ -47,7 +48,11 @@ SOUNDS_DIR  = os.path.join(BASE_DIR, "assets", "media", "sounds")
 ICON_PATH   = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.png")
 
 ALLOWED_IMAGE_EXTS = (".png", ".jpg", ".jpeg")
-ALLOWED_SOUND_EXTS = (".mp3",)
+ALLOWED_SOUND_EXTS = (".mp3", ".wav")
+
+# Sentinel labels shown as the first item in every image / sound dropdown
+CUSTOM_IMAGE_LABEL = "➕  Add custom image…"
+CUSTOM_SOUND_LABEL = "➕  Add custom sound…"
 
 FIXED_TRIGGERS = ["start", "work_end"]
 TRIGGER_LABELS = {
@@ -110,17 +115,20 @@ def save_config(cfg):
         return False
 
 def list_figures():
+    """Return available images with the custom-import option first."""
     if not os.path.isdir(FIGURES_DIR):
-        return []
-    return sorted(f for f in os.listdir(FIGURES_DIR)
-                  if os.path.splitext(f)[1].lower() in ALLOWED_IMAGE_EXTS)
+        return [CUSTOM_IMAGE_LABEL]
+    files = sorted(f for f in os.listdir(FIGURES_DIR)
+                   if os.path.splitext(f)[1].lower() in ALLOWED_IMAGE_EXTS)
+    return [CUSTOM_IMAGE_LABEL] + files
 
 def list_sounds():
-    """Return all .mp3 files in SOUNDS_DIR, sorted alphabetically."""
+    """Return available sounds (.mp3, .wav) with the custom-import option first."""
     if not os.path.isdir(SOUNDS_DIR):
-        return []
-    return sorted(f for f in os.listdir(SOUNDS_DIR)
-                  if os.path.splitext(f)[1].lower() in ALLOWED_SOUND_EXTS)
+        return [CUSTOM_SOUND_LABEL]
+    files = sorted(f for f in os.listdir(SOUNDS_DIR)
+                   if os.path.splitext(f)[1].lower() in ALLOWED_SOUND_EXTS)
+    return [CUSTOM_SOUND_LABEL] + files
 
 def get_popup(cfg, trigger):
     for p in cfg.get("popups", []):
@@ -155,30 +163,138 @@ def _make_min_sec_widgets(parent, var_min, var_sec, bg, font,
     tk.Label(parent, text=" s", font=font, bg=bg, fg="#444444").pack(side="left")
 
 
-def _build_sound_row(parent, var_snd, sounds, bg, font, fg, fg_light):
+def _import_custom_file(src_path, dest_dir, allowed_exts):
     """
-    Build a sound selection row: combobox + labelled play button.
-    Auto-plays the sound only when the user actively changes the selection
-    (not during programmatic population via _populate).
-    Returns the combobox widget.
+    Copy src_path into dest_dir if the extension is allowed.
+    Returns the filename on success, or None on failure.
     """
-    cb = ttk.Combobox(parent, textvariable=var_snd, values=sounds,
-                      width=20, font=font, state="normal")
+    ext = os.path.splitext(src_path)[1].lower()
+    if ext not in allowed_exts:
+        messagebox.showerror(
+            "Unsupported Format",
+            f"File type '{ext}' is not supported.\nAllowed: {', '.join(allowed_exts)}"
+        )
+        return None
+    os.makedirs(dest_dir, exist_ok=True)
+    filename = os.path.basename(src_path)
+    dest_path = os.path.join(dest_dir, filename)
+    if os.path.abspath(src_path) != os.path.abspath(dest_path):
+        shutil.copy2(src_path, dest_path)
+    return filename
+
+
+def _build_image_row(parent, var_img, figures_list_ref, bg, font, fg, fg_light):
+    """
+    Build an image selection row: combobox + thumbnail preview.
+    The first dropdown item opens a file dialog to import a custom image.
+    figures_list_ref is a list that the caller may update; the combobox
+    values are refreshed after a successful import.
+    Returns (combobox, preview_label).
+    """
+    cb = ttk.Combobox(parent, textvariable=var_img,
+                      values=figures_list_ref, width=22, font=font, state="normal")
     cb.pack(side="left")
 
-    def _play_selected(*_):
-        # Only play if the change came from a real user interaction,
-        # not from programmatic set() calls during _populate.
-        if getattr(_build_sound_row, "_suppress_preview", False):
+    prev_lbl = tk.Label(parent, bg=bg)
+    prev_lbl.pack(side="left", padx=(8, 0))
+
+    def _refresh_preview(*_):
+        val = var_img.get()
+        if val == CUSTOM_IMAGE_LABEL or not val:
+            prev_lbl.config(image="")
             return
+        path = os.path.join(FIGURES_DIR, val)
+        if os.path.exists(path):
+            try:
+                img = Image.open(path).resize((32, 32))
+                ph  = ImageTk.PhotoImage(img)
+                prev_lbl.config(image=ph); prev_lbl._photo = ph
+            except Exception:
+                prev_lbl.config(image="")
+        else:
+            prev_lbl.config(image="")
+
+    def _on_select(event=None):
+        val = var_img.get()
+        if val != CUSTOM_IMAGE_LABEL:
+            _refresh_preview()
+            return
+        # Open file dialog
+        path = filedialog.askopenfilename(
+            title="Select Image",
+            filetypes=[
+                ("Image files", "*.png *.jpg *.jpeg"),
+                ("PNG", "*.png"),
+                ("JPEG", "*.jpg *.jpeg"),
+            ]
+        )
+        if not path:
+            var_img.set("")
+            return
+        fname = _import_custom_file(path, FIGURES_DIR, ALLOWED_IMAGE_EXTS)
+        if fname:
+            # Refresh dropdown values
+            new_list = list_figures()
+            figures_list_ref[:] = new_list
+            cb["values"] = new_list
+            var_img.set(fname)
+            _refresh_preview()
+        else:
+            var_img.set("")
+
+    cb.bind("<<ComboboxSelected>>", _on_select)
+    var_img.trace_add("write", _refresh_preview)
+    _refresh_preview()
+
+    return cb, prev_lbl
+
+
+def _build_sound_row(parent, var_snd, sounds_list_ref, bg, font, fg, fg_light):
+    """
+    Build a sound selection row: combobox + Play Sound button.
+    The first dropdown item opens a file dialog to import a custom sound.
+    Auto-plays the sound when the user actively selects from the dropdown.
+    sounds_list_ref is a list that may be updated after a successful import.
+    Returns the combobox widget.
+    """
+    cb = ttk.Combobox(parent, textvariable=var_snd,
+                      values=sounds_list_ref, width=20, font=font, state="normal")
+    cb.pack(side="left")
+
+    def _play_current(*_):
         snd = var_snd.get().strip()
-        if snd:
+        if snd and snd != CUSTOM_SOUND_LABEL:
             preview_sound(os.path.join(SOUNDS_DIR, snd))
 
-    # Auto-play when user picks from the dropdown
-    cb.bind("<<ComboboxSelected>>", _play_selected)
+    def _on_select(event=None):
+        val = var_snd.get()
+        if val != CUSTOM_SOUND_LABEL:
+            _play_current()
+            return
+        # Open file dialog
+        path = filedialog.askopenfilename(
+            title="Select Sound",
+            filetypes=[
+                ("Audio files", "*.mp3 *.wav"),
+                ("MP3", "*.mp3"),
+                ("WAV", "*.wav"),
+            ]
+        )
+        if not path:
+            var_snd.set("")
+            return
+        fname = _import_custom_file(path, SOUNDS_DIR, ALLOWED_SOUND_EXTS)
+        if fname:
+            new_list = list_sounds()
+            sounds_list_ref[:] = new_list
+            cb["values"] = new_list
+            var_snd.set(fname)
+            _play_current()
+        else:
+            var_snd.set("")
 
-    # ▶ Play Sound button — lets user re-play the selected sound on demand
+    cb.bind("<<ComboboxSelected>>", _on_select)
+
     play_btn = tk.Button(
         parent,
         text="▶  Play Sound",
@@ -187,7 +303,7 @@ def _build_sound_row(parent, var_snd, sounds, bg, font, fg, fg_light):
         activebackground="#c5d5f5", activeforeground="#1a73e8",
         relief="flat", cursor="hand2",
         padx=8, pady=2, bd=0,
-        command=_play_selected,
+        command=_play_current,
     )
     play_btn.pack(side="left", padx=(6, 0))
 
@@ -301,36 +417,21 @@ class BreakMilestoneManager:
                  relief="solid", bd=1, highlightthickness=0
                  ).pack(side="left", fill="x", expand=True)
 
-        # Image
+        # Image — uses _build_image_row with custom import support
         r_img = tk.Frame(card, bg=self.CARD_BG); r_img.pack(fill="x", pady=2)
         tk.Label(r_img, text="Image", font=self.FONT_MAIN,
                  bg=self.CARD_BG, fg=self.FG, width=18, anchor="w").pack(side="left")
-        ttk.Combobox(r_img, textvariable=entry["image"], values=self.figures,
-                     width=20, font=self.FONT_MAIN, state="normal").pack(side="left")
-        prev_lbl = tk.Label(r_img, bg=self.CARD_BG)
-        prev_lbl.pack(side="left", padx=(8, 0))
+        figures_list = list_figures()   # fresh list including any previously imported files
+        _build_image_row(r_img, entry["image"], figures_list,
+                         bg=self.CARD_BG, font=self.FONT_MAIN,
+                         fg=self.FG, fg_light=self.FG_LIGHT)
 
-        def _make_upd(lbl, sv):
-            def _u(*_):
-                path = os.path.join(FIGURES_DIR, sv.get())
-                if os.path.exists(path):
-                    try:
-                        img = Image.open(path).resize((32, 32))
-                        ph  = ImageTk.PhotoImage(img)
-                        lbl.config(image=ph); lbl._photo = ph
-                    except Exception:
-                        lbl.config(image="")
-                else:
-                    lbl.config(image="")
-            return _u
-        u = _make_upd(prev_lbl, entry["image"])
-        entry["image"].trace_add("write", u); u()
-
-        # Sound + Repeat — uses shared helper with auto-play + play button
+        # Sound + Repeat — uses _build_sound_row with custom import support
         r_snd = tk.Frame(card, bg=self.CARD_BG); r_snd.pack(fill="x", pady=2)
         tk.Label(r_snd, text="Sound", font=self.FONT_MAIN,
                  bg=self.CARD_BG, fg=self.FG, width=18, anchor="w").pack(side="left")
-        _build_sound_row(r_snd, entry["sound"], self.sounds,
+        sounds_list = list_sounds()   # fresh list including any previously imported files
+        _build_sound_row(r_snd, entry["sound"], sounds_list,
                          bg=self.CARD_BG, font=self.FONT_MAIN,
                          fg=self.FG, fg_light=self.FG_LIGHT)
         tk.Label(r_snd, text="  Repeat", font=self.FONT_MAIN,
@@ -596,36 +697,23 @@ class ConfigApp(tk.Tk):
                  relief="solid", bd=1, highlightthickness=0
                  ).pack(side="left", fill="x", expand=True)
 
+        # Image — with custom import support
         ir = tk.Frame(section, bg=self.PANEL); ir.pack(fill="x", pady=3)
         tk.Label(ir, text="Image", font=self.FONT_MAIN,
                  bg=self.PANEL, fg=self.FG, width=14, anchor="w").pack(side="left")
         var_img = tk.StringVar()
-        ttk.Combobox(ir, textvariable=var_img, values=figures, width=20,
-                     font=self.FONT_MAIN, state="normal").pack(side="left")
-        prev_lbl = tk.Label(ir, bg=self.PANEL); prev_lbl.pack(side="left", padx=(8, 0))
+        figures_list = list_figures()   # mutable list for this row
+        _build_image_row(ir, var_img, figures_list,
+                         bg=self.PANEL, font=self.FONT_MAIN,
+                         fg=self.FG, fg_light=self.FG_LIGHT)
 
-        def _make_prev(lbl, sv):
-            def _u(*_):
-                path = os.path.join(FIGURES_DIR, sv.get())
-                if os.path.exists(path):
-                    try:
-                        img = Image.open(path).resize((32, 32))
-                        ph  = ImageTk.PhotoImage(img)
-                        lbl.config(image=ph); lbl._photo = ph
-                    except Exception:
-                        lbl.config(image="")
-                else:
-                    lbl.config(image="")
-            return _u
-        upd = _make_prev(prev_lbl, var_img)
-        var_img.trace_add("write", upd)
-
-        # Sound row — uses shared helper with auto-play + play button
+        # Sound row — with custom import support + auto-play + play button
         sr = tk.Frame(section, bg=self.PANEL); sr.pack(fill="x", pady=3)
         tk.Label(sr, text="Sound", font=self.FONT_MAIN,
                  bg=self.PANEL, fg=self.FG, width=14, anchor="w").pack(side="left")
         var_snd = tk.StringVar()
-        _build_sound_row(sr, var_snd, sounds,
+        sounds_list = list_sounds()   # mutable list for this row
+        _build_sound_row(sr, var_snd, sounds_list,
                          bg=self.PANEL, font=self.FONT_MAIN,
                          fg=self.FG, fg_light=self.FG_LIGHT)
         tk.Label(sr, text="  Repeat", font=self.FONT_MAIN,

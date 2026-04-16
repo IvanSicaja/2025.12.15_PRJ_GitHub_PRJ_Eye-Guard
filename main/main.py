@@ -135,7 +135,7 @@ pygame.mixer.init()
 def play_sound_async(sound_filename, repeat=1):
     """
     Play any sound file from SOUNDS_DIR by filename.
-    Supports any .mp3 present in the sounds folder (sound.mp3, sound_01.mp3, etc.)
+    Supports .mp3 and .wav files (sound.mp3, sound_01.mp3, sound_01.wav, etc.)
     """
     sound_path = os.path.join(SOUNDS_DIR, sound_filename)
     def _play():

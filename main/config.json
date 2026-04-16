@@ -2,16 +2,16 @@
   "work_time_min": 25,
   "work_time_sec": 0,
   "popup_opacity": 100,
-  "test_mode": false,
-  "cycle_align": true,
+  "test_mode": true,
+  "cycle_align": false,
   "font_name": "Montserrat",
   "message_color": "#222222",
   "popups": [
     {
       "trigger": "start",
       "message": "EyeGuard is now active — helping you care for your eyes!",
-      "image": "1.png",
-      "sound": "sound_01.mp3",
+      "image": "6.png",
+      "sound": "Wind Sound SOUND EFFECT - No CopyrightDownload Free.mp3",
       "sound_repeat": 1
     },
     {
