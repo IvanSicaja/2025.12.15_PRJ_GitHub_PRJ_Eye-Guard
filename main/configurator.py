@@ -60,14 +60,14 @@ DEFAULT_CONFIG = {
     "work_time_sec":    0,
     "popup_opacity":  100,
     "test_mode":    False,
-    "cycle_align":  False,
+    "cycle_align":   True,
     "font_name":    "Montserrat",
     "message_color": "#222222",
     "popups": [
-        {"trigger": "start",     "message": "EyeGuard is now active — helping you care for your eyes!", "image": "1.png", "sound": "sound.mp3", "sound_repeat": 1},
-        {"trigger": "work_end",  "message": "Your eyes deserve a quick rest. Take a 30-second break!",  "image": "2.png", "sound": "sound.mp3", "sound_repeat": 1},
-        {"trigger": "break_end", "message": "Eye break's over. Enjoy 4½ minutes just for you!",         "image": "3.png", "sound": "sound.mp3", "sound_repeat": 1, "duration_min": 0, "duration_sec": 30},
-        {"trigger": "break_end", "message": "Great! Let's get back to it, refreshed and focused!",      "image": "4.png", "sound": "sound.mp3", "sound_repeat": 2, "duration_min": 4, "duration_sec": 30},
+        {"trigger": "start",     "message": "EyeGuard is now active — helping you care for your eyes!", "image": "1.png", "sound": "sound_01.mp3", "sound_repeat": 1},
+        {"trigger": "work_end",  "message": "Your eyes deserve a quick rest. Take a 30-second break!",  "image": "2.png", "sound": "sound_03.mp3", "sound_repeat": 1},
+        {"trigger": "break_end", "message": "Eye break's over. Enjoy 4 minutes just for you!",          "image": "3.png", "sound": "sound_03.mp3", "sound_repeat": 1, "duration_min": 1, "duration_sec": 0},
+        {"trigger": "break_end", "message": "Great! Let's get back to it, refreshed and focused!",      "image": "4.png", "sound": "sound_02.mp3", "sound_repeat": 1, "duration_min": 4, "duration_sec": 0},
     ],
 }
 
@@ -157,8 +157,9 @@ def _make_min_sec_widgets(parent, var_min, var_sec, bg, font,
 
 def _build_sound_row(parent, var_snd, sounds, bg, font, fg, fg_light):
     """
-    Build a sound selection row: combobox + play button.
-    Auto-plays the sound when selection changes.
+    Build a sound selection row: combobox + labelled play button.
+    Auto-plays the sound only when the user actively changes the selection
+    (not during programmatic population via _populate).
     Returns the combobox widget.
     """
     cb = ttk.Combobox(parent, textvariable=var_snd, values=sounds,
@@ -166,25 +167,29 @@ def _build_sound_row(parent, var_snd, sounds, bg, font, fg, fg_light):
     cb.pack(side="left")
 
     def _play_selected(*_):
+        # Only play if the change came from a real user interaction,
+        # not from programmatic set() calls during _populate.
+        if getattr(_build_sound_row, "_suppress_preview", False):
+            return
         snd = var_snd.get().strip()
         if snd:
             preview_sound(os.path.join(SOUNDS_DIR, snd))
 
-    # Auto-play on combobox selection change
-    var_snd.trace_add("write", _play_selected)
+    # Auto-play when user picks from the dropdown
+    cb.bind("<<ComboboxSelected>>", _play_selected)
 
-    # ▶ play button — lets user re-play the currently selected sound
+    # ▶ Play Sound button — lets user re-play the selected sound on demand
     play_btn = tk.Button(
         parent,
-        text="▶",
+        text="▶  Play Sound",
         font=("Segoe UI", 9),
         bg="#e8f0fe", fg="#1a73e8",
         activebackground="#c5d5f5", activeforeground="#1a73e8",
         relief="flat", cursor="hand2",
-        padx=5, pady=1, bd=0,
+        padx=8, pady=2, bd=0,
         command=_play_selected,
     )
-    play_btn.pack(side="left", padx=(4, 0))
+    play_btn.pack(side="left", padx=(6, 0))
 
     return cb
 
@@ -867,14 +872,24 @@ class ConfigApp(tk.Tk):
                  font=("Segoe UI", 8), bg=self.PANEL,
                  fg=self.FG_LIGHT).pack(side="left")
 
-        tk.Frame(pane3, height=1, bg=self.BORDER).pack(fill="x", pady=(0, 8))
+        tk.Frame(pane3, height=1, bg=self.BORDER).pack(fill="x", pady=(0, 10))
 
-        bs_adv = dict(font=("Segoe UI Semibold", 10), relief="flat",
-                      cursor="hand2", padx=16, pady=7, bd=0)
-        tk.Button(pane3, text="↺  Reset to Defaults",
-                  bg="#eeeeee", fg=self.FG,
-                  activebackground="#dddddd",
-                  command=self._reset, **bs_adv).pack(anchor="w")
+        # Professional reset button using ttk with a custom style
+        style = ttk.Style()
+        style.configure("Reset.TButton",
+                         font=("Segoe UI", 10),
+                         foreground="#444444",
+                         background="#f0f0f0",
+                         borderwidth=1,
+                         relief="flat",
+                         padding=(14, 7))
+        style.map("Reset.TButton",
+                  background=[("active", "#e0e0e0"), ("pressed", "#d0d0d0")],
+                  foreground=[("active", "#222222")])
+
+        ttk.Button(pane3, text="↺   Reset to Defaults",
+                   style="Reset.TButton",
+                   command=self._reset).pack(anchor="w")
 
         # ══════════════════════════════════════════════════════════════
         # RIGHT COLUMN — scrollable popup events

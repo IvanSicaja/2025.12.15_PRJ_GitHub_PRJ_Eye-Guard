@@ -24,7 +24,7 @@ DEFAULT_CONFIG = {
     "work_time_sec":    0,
     "popup_opacity":  100,
     "test_mode":    False,
-    "cycle_align":  False,
+    "cycle_align":   True,
     "font_name":    "Montserrat",
     "message_color": "#222222",
     "popups": [
@@ -32,33 +32,33 @@ DEFAULT_CONFIG = {
             "trigger": "start",
             "message": "EyeGuard is now active — helping you care for your eyes!",
             "image": "1.png",
-            "sound": "sound.mp3",
+            "sound": "sound_01.mp3",
             "sound_repeat": 1
         },
         {
             "trigger": "work_end",
             "message": "Your eyes deserve a quick rest. Take a 30-second break!",
             "image": "2.png",
-            "sound": "sound.mp3",
+            "sound": "sound_03.mp3",
             "sound_repeat": 1
         },
         {
             "trigger": "break_end",
-            "message": "Eye break's over. Enjoy 4½ minutes just for you!",
+            "message": "Eye break's over. Enjoy 4 minutes just for you!",
             "image": "3.png",
-            "sound": "sound.mp3",
+            "sound": "sound_03.mp3",
             "sound_repeat": 1,
-            "duration_min": 0,
-            "duration_sec": 30
+            "duration_min": 1,
+            "duration_sec": 0
         },
         {
             "trigger": "break_end",
             "message": "Great! Let's get back to it, refreshed and focused!",
             "image": "4.png",
-            "sound": "sound.mp3",
-            "sound_repeat": 2,
+            "sound": "sound_02.mp3",
+            "sound_repeat": 1,
             "duration_min": 4,
-            "duration_sec": 30
+            "duration_sec": 0
         }
     ]
 }
