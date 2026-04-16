@@ -39,14 +39,14 @@ DEFAULT_CONFIG = {
             "trigger": "work_end",
             "message": "Your eyes deserve a quick rest. Take a 30-second break!",
             "image": "2.png",
-            "sound": "sound_03.mp3",
+            "sound": "sound_04.mp3",
             "sound_repeat": 1
         },
         {
             "trigger": "break_end",
             "message": "Eye break's over. Enjoy 4 minutes just for you!",
             "image": "3.png",
-            "sound": "sound_03.mp3",
+            "sound": "sound_07.mp3",
             "sound_repeat": 1,
             "duration_min": 1,
             "duration_sec": 0

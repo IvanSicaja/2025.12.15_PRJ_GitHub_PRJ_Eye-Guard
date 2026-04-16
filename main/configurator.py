@@ -64,14 +64,14 @@ DEFAULT_CONFIG = {
     "work_time_min":   25,
     "work_time_sec":    0,
     "popup_opacity":  100,
-    "test_mode":    False,
-    "cycle_align":   True,
+    "test_mode":     True,
+    "cycle_align":  False,
     "font_name":    "Montserrat",
     "message_color": "#222222",
     "popups": [
         {"trigger": "start",     "message": "EyeGuard is now active — helping you care for your eyes!", "image": "1.png", "sound": "sound_01.mp3", "sound_repeat": 1},
-        {"trigger": "work_end",  "message": "Your eyes deserve a quick rest. Take a 30-second break!",  "image": "2.png", "sound": "sound_03.mp3", "sound_repeat": 1},
-        {"trigger": "break_end", "message": "Eye break's over. Enjoy 4 minutes just for you!",          "image": "3.png", "sound": "sound_03.mp3", "sound_repeat": 1, "duration_min": 1, "duration_sec": 0},
+        {"trigger": "work_end",  "message": "Your eyes deserve a quick rest. Take a 30-second break!",  "image": "2.png", "sound": "sound_04.mp3", "sound_repeat": 1},
+        {"trigger": "break_end", "message": "Eye break's over. Enjoy 4 minutes just for you!",          "image": "3.png", "sound": "sound_07.mp3", "sound_repeat": 1, "duration_min": 1, "duration_sec": 0},
         {"trigger": "break_end", "message": "Great! Let's get back to it, refreshed and focused!",      "image": "4.png", "sound": "sound_02.mp3", "sound_repeat": 1, "duration_min": 4, "duration_sec": 0},
     ],
 }
@@ -503,47 +503,106 @@ class BreakMilestoneManager:
         return self._entries
 
 
-# ====================== ANDROID-STYLE TOGGLE SWITCH ======================
+# ====================== PROFESSIONAL TOGGLE SWITCH ======================
 
 class ToggleSwitch(tk.Canvas):
     """
-    A smooth animated Android-style toggle switch.
-    Shares a tk.BooleanVar with other widgets.
+    Professional iOS / Material-style animated toggle switch.
+
+    Visual design:
+    • Larger pill track (56 × 28 px) with subtle inner shadow
+    • Elevated white thumb with drop-shadow ring
+    • Smooth colour transition between ON (#1a73e8) and OFF (#b0b8c1)
+    • 12-frame eased animation at ~60 fps
+    • Cursor changes to hand on hover
     """
-    W, H   = 46, 24
-    PAD    = 3
-    ON_BG  = "#1a73e8"
-    OFF_BG = "#cccccc"
-    THUMB  = "#ffffff"
-    STEPS  = 8
+
+    W, H   = 56, 28          # track dimensions
+    PAD    = 3                # thumb inset from track edge
+    STEPS  = 12               # animation frames
+
+    # Colour palette
+    ON_TRACK  = "#1a73e8"     # Google Blue
+    OFF_TRACK = "#b0b8c1"     # cool grey
+    THUMB_CLR = "#ffffff"
+    SHADOW_CLR= "#d0d8e4"     # thumb drop-shadow ring colour
 
     def __init__(self, parent, variable, **kwargs):
         super().__init__(parent,
                          width=self.W, height=self.H,
-                         highlightthickness=0,
-                         bd=0, **kwargs)
+                         highlightthickness=0, bd=0, **kwargs)
         self._var       = variable
         self._animating = False
+        self._cur_ratio = 0.0   # 0.0 = fully OFF, 1.0 = fully ON
 
-        r = self.H / 2
-        self._track = self.create_rounded_rect(0, 0, self.W, self.H, r,
-                                               fill=self.OFF_BG, outline="")
-        ty = self.PAD
-        tx = self.PAD
-        self._thumb = self.create_oval(tx, ty,
-                                       tx + self.H - 2*self.PAD,
-                                       ty + self.H - 2*self.PAD,
-                                       fill=self.THUMB, outline="")
-
-        self.bind("<Button-1>", self._on_click)
+        self._draw()
+        self.bind("<Button-1>",  self._on_click)
+        self.bind("<Enter>",     lambda _: self.config(cursor="hand2"))
+        self.bind("<Leave>",     lambda _: self.config(cursor=""))
         self._var.trace_add("write", self._on_var_change)
         self._apply_state(animate=False)
 
-    def create_rounded_rect(self, x1, y1, x2, y2, r, **kw):
+    # ── Drawing ────────────────────────────────────────────────────────
+
+    def _lerp_color(self, c1, c2, t):
+        """Linear interpolate between two #rrggbb hex colours."""
+        r1, g1, b1 = int(c1[1:3],16), int(c1[3:5],16), int(c1[5:7],16)
+        r2, g2, b2 = int(c2[1:3],16), int(c2[3:5],16), int(c2[5:7],16)
+        r = int(r1 + (r2-r1)*t)
+        g = int(g1 + (g2-g1)*t)
+        b = int(b1 + (b2-b1)*t)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def _thumb_x(self):
+        """Compute thumb left-x from current ratio."""
+        travel = self.W - self.H           # how far the thumb travels
+        return self.PAD + self._cur_ratio * travel
+
+    def _draw(self):
+        """Redraw the entire widget from scratch based on _cur_ratio."""
+        self.delete("all")
+
+        # ── Track ──────────────────────────────────────────────────────
+        track_color = self._lerp_color(self.OFF_TRACK, self.ON_TRACK, self._cur_ratio)
+        r = self.H / 2
+        self._draw_pill(0, 0, self.W, self.H, r, track_color)
+
+        # ── Thumb shadow ring ──────────────────────────────────────────
+        tx = self._thumb_x()
+        td = self.H - 2 * self.PAD         # thumb diameter
+        shadow_pad = 1
+        self.create_oval(
+            tx - shadow_pad, self.PAD - shadow_pad,
+            tx + td + shadow_pad, self.PAD + td + shadow_pad,
+            fill=self.SHADOW_CLR, outline=""
+        )
+
+        # ── Thumb ──────────────────────────────────────────────────────
+        self.create_oval(tx, self.PAD, tx + td, self.PAD + td,
+                         fill=self.THUMB_CLR, outline="")
+
+        # ── ON / OFF label inside track ────────────────────────────────
+        label_alpha = self._cur_ratio
+        if label_alpha > 0.55:
+            self.create_text(
+                self.W * 0.28, self.H / 2,
+                text="ON", fill="white",
+                font=("Segoe UI Semibold", 7)
+            )
+        else:
+            self.create_text(
+                self.W * 0.72, self.H / 2,
+                text="OFF", fill="white",
+                font=("Segoe UI Semibold", 7)
+            )
+
+    def _draw_pill(self, x1, y1, x2, y2, r, color):
         pts = [x1+r, y1, x2-r, y1, x2, y1, x2, y1+r,
                x2, y2-r, x2, y2, x2-r, y2, x1+r, y2,
                x1, y2, x1, y2-r, x1, y1+r, x1, y1]
-        return self.create_polygon(pts, smooth=True, **kw)
+        self.create_polygon(pts, smooth=True, fill=color, outline="")
+
+    # ── Interaction ────────────────────────────────────────────────────
 
     def _on_click(self, _=None):
         self._var.set(not self._var.get())
@@ -552,33 +611,29 @@ class ToggleSwitch(tk.Canvas):
         self._apply_state(animate=True)
 
     def _apply_state(self, animate=True):
-        on = self._var.get()
-        target_x     = self.W - self.H + self.PAD if on else self.PAD
-        target_color = self.ON_BG if on else self.OFF_BG
+        target = 1.0 if self._var.get() else 0.0
         if animate and not self._animating:
-            self._animate_to(target_x, target_color, self.STEPS)
+            self._animate_to(target, self.STEPS)
         else:
-            self._set_thumb_x(target_x)
-            self.itemconfig(self._track, fill=target_color)
+            self._cur_ratio = target
+            self._draw()
 
-    def _animate_to(self, target_x, target_color, steps_left):
+    def _ease(self, t):
+        """Ease-in-out cubic."""
+        return t * t * (3 - 2 * t)
+
+    def _animate_to(self, target, steps_left):
         if steps_left <= 0:
-            self._set_thumb_x(target_x)
-            self.itemconfig(self._track, fill=target_color)
+            self._cur_ratio = target
+            self._draw()
             self._animating = False
             return
         self._animating = True
-        coords = self.coords(self._thumb)
-        cur_x  = coords[0]
-        new_x  = cur_x + (target_x - cur_x) / steps_left
-        self._set_thumb_x(new_x)
-        self.itemconfig(self._track, fill=target_color)
-        self.after(16, lambda: self._animate_to(target_x, target_color, steps_left - 1))
-
-    def _set_thumb_x(self, x):
-        y = self.PAD
-        d = self.H - 2 * self.PAD
-        self.coords(self._thumb, x, y, x + d, y + d)
+        # Move a fraction of the remaining distance (eased)
+        remaining = target - self._cur_ratio
+        self._cur_ratio += remaining / steps_left
+        self._draw()
+        self.after(16, lambda: self._animate_to(target, steps_left - 1))
 
 
 # ====================== GUI ======================
@@ -887,14 +942,14 @@ class ConfigApp(tk.Tk):
                  state="readonly", readonlybackground=self.READONLY,
                  highlightthickness=0).pack(side="left")
 
-        # Total Cycle Time (read-only)
+        # Total Cycle Time (read-only) — label + entry aligned identically to rows above
         self._var_total_cycle = tk.StringVar(value="—")
         self._total_cycle_row = tk.Frame(self._timer_canvas_frame, bg=self.PANEL)
         tk.Label(self._total_cycle_row, text="Total Cycle Time",
-                 font=("Segoe UI Semibold", 10), bg=self.PANEL, fg=self.ACCENT,
+                 font=self.FONT_MAIN, bg=self.PANEL, fg=self.ACCENT,
                  width=18, anchor="w").pack(side="left")
         tk.Entry(self._total_cycle_row, textvariable=self._var_total_cycle,
-                 width=10, font=("Segoe UI Semibold", 10), relief="flat",
+                 width=10, font=self.FONT_MAIN, relief="flat",
                  bg=self.READONLY, fg=self.ACCENT,
                  state="readonly", readonlybackground=self.READONLY,
                  highlightthickness=0).pack(side="left")
@@ -919,10 +974,10 @@ class ConfigApp(tk.Tk):
         tk.Label(op_row, text=" %", font=self.FONT_MAIN,
                  bg=self.PANEL, fg="#444444").pack(side="left")
         ttk.Scale(op_row, from_=10, to=100,
-                  orient="horizontal", length=160,
+                  orient="horizontal",
                   variable=self.var_opacity,
                   command=lambda v: self.var_opacity.set(int(float(v)))
-                  ).pack(side="left", padx=(10, 0))
+                  ).pack(side="left", padx=(10, 0), fill="x", expand=True)
 
         tk.Frame(pane2, height=1, bg=self.BORDER).pack(fill="x", pady=(4, 8))
 
