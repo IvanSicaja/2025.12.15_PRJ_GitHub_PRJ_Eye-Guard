@@ -85,7 +85,7 @@ FONT_NAME      = CONFIG.get("font_name", "Montserrat")
 _opacity_pct   = CONFIG.get("popup_opacity", 100)
 POPUP_ALPHA    = max(0.10, min(1.0, _opacity_pct / 100.0))
 
-ICON_PATH      = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.png")
+ICON_PATH      = os.path.join(BASE_DIR, "assets", "media", "icons", "icon.ico")
 FIGURES_DIR    = os.path.join(BASE_DIR, "assets", "media", "figures")
 SOUNDS_DIR     = os.path.join(BASE_DIR, "assets", "media", "sounds")
 
